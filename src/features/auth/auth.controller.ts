@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Inject, Post, Req, Res } from '@nestjs/common';
 import { SignUpDto } from './dto/sign-up.dto';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { SignInDto } from './dto/sign-in.dto';
 import { AuthConfig, authConfigRegistration } from 'src/config/auth.config';
+import { Public } from 'src/core/decorators/public-route.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -12,18 +13,22 @@ export class AuthController {
 		@Inject(authConfigRegistration.KEY) private readonly authConfig: AuthConfig,
 	) {}
 
+	@Public()
 	@Post('sign-up')
 	public async signUp(@Res({ passthrough: true }) res: Response, @Body() body: SignUpDto) {
 		const sessionToken = await this.authenticationService.signUp(body);
 		this.addSessionTokenToResponseCookie(res, sessionToken);
 	}
 
+	@Public()
+	@HttpCode(HttpStatus.OK)
 	@Post('sign-in')
 	public async signIn(@Res({ passthrough: true }) res: Response, @Body() body: SignInDto) {
 		const sessionToken = await this.authenticationService.signIn(body.username, body.password);
 		this.addSessionTokenToResponseCookie(res, sessionToken);
 	}
 
+	@HttpCode(HttpStatus.OK)
 	@Post('sign-out')
 	public async signOut(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
 		const sessionToken = req.cookies?.[this.authConfig.cookie.name];
