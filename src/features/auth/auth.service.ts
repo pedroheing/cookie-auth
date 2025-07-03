@@ -1,23 +1,23 @@
 import { ConflictException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { Prisma, Session, SessionStatus } from '@prisma/client';
+import { Prisma, Session, SessionStatus, User } from '@prisma/client';
 import { RedisService } from 'src/common/redis/redis.service';
 import { SignUpDto } from './dto/sign-up.dto';
 import { v4 as uuidv4 } from 'uuid';
-import { addDays } from 'date-fns';
+import { addDays, isAfter, isBefore, subHours } from 'date-fns';
 import * as crypto from 'node:crypto';
 import { PrismaService, PrismaTx } from 'src/common/prisma/prisma.service';
-import authConfigRegistration, { AuthConfig } from 'src/config/auth.config';
+import { AuthConfig, authConfigRegistration } from 'src/config/auth.config';
 import { PasswordHashingService } from 'src/common/password-hashing/password-hashing.service';
-
-interface SessionCachePayload {
-	userId: number;
-	status: SessionStatus;
-	expiresAt: Date;
-}
 
 interface CreateSessionResult {
 	session: Session;
 	sessionToken: string;
+}
+
+interface ValidateUserSessionResult {
+	userId: number;
+	/**Only has value if token was refreshed */
+	newSessionToken?: string;
 }
 
 @Injectable()
@@ -105,6 +105,56 @@ export class AuthService {
 		});
 	}
 
+	public async validateUserSession(sessionToken: string): Promise<ValidateUserSessionResult | null> {
+		const tokenHash = this.getSessionTokenHash(sessionToken);
+		let session = await this.getSessionFromCache(tokenHash);
+		if (!session) {
+			session = await this.prismaService.session.findUnique({
+				where: {
+					token_hash: tokenHash,
+				},
+			});
+			if (!session) {
+				return null;
+			}
+		}
+		if (session.status !== SessionStatus.Active) {
+			return null;
+		}
+		const hasSessionExpired = isAfter(new Date(), session.expires_at);
+		if (hasSessionExpired) {
+			return null;
+		}
+		let newSessionToken: string | undefined;
+		const hasTokenExpired = isBefore(session.last_token_issued_at, subHours(new Date(), this.authConfig.sessionTokenTTLInHours));
+		if (hasTokenExpired) {
+			const result = await this.refreshSessionToken(session.session_id);
+			session = result.session;
+			sessionToken = result.sessionToken;
+			newSessionToken = result.sessionToken;
+			// allows older session to be valid for an extra time to finish concurrent calls
+			await this.redisService.expire(this.getRedisSessionKey(tokenHash), this.authConfig.authSessionCacheTTLAterTokenRefreshInSeconds);
+		}
+		await this.addSessionToCache(session);
+		return { userId: session.user_id, newSessionToken };
+	}
+
+	private async refreshSessionToken(sessionId: number): Promise<CreateSessionResult> {
+		const sessionToken = this.generateNewSessionToken();
+		const refreshTime = new Date();
+		const session = await this.prismaService.session.update({
+			where: {
+				session_id: sessionId,
+			},
+			data: {
+				last_token_issued_at: refreshTime,
+				token_hash: this.getSessionTokenHash(sessionToken),
+				expires_at: this.getSessionExpirationDate(refreshTime),
+			},
+		});
+		return { session, sessionToken };
+	}
+
 	private async createSession(userId: number, tx?: PrismaTx): Promise<CreateSessionResult> {
 		const prismaService = tx ?? this.prismaService;
 		const sessionToken = this.generateNewSessionToken();
@@ -122,16 +172,19 @@ export class AuthService {
 	}
 
 	private async addSessionToCache(session: Session): Promise<void> {
-		const cachePayload: SessionCachePayload = {
-			userId: session.user_id,
-			status: session.status,
-			expiresAt: session.expires_at,
-		};
-		await this.redisService.set(this.getRedisSessionKey(session.token_hash), JSON.stringify(cachePayload), 'EX', this.authConfig.cacheLifespanInSeconds);
+		await this.redisService.set(this.getRedisSessionKey(session.token_hash), JSON.stringify(session), 'EX', this.authConfig.cacheLifespanInSeconds);
 	}
 
 	private async removeSessionFromCache(tokenHash: string): Promise<void> {
 		await this.redisService.del(this.getRedisSessionKey(tokenHash));
+	}
+
+	private async getSessionFromCache(tokenhash: string): Promise<Session | null> {
+		const sessionCache = await this.redisService.get(this.getRedisSessionKey(tokenhash));
+		if (sessionCache) {
+			return JSON.parse(sessionCache);
+		}
+		return null;
 	}
 
 	private generateNewSessionToken() {

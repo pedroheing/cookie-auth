@@ -1,6 +1,6 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import Redis from 'ioredis';
-import redisConfigRegistration, { RedisConfig } from 'src/config/redis.config';
+import { RedisConfig, redisConfigRegistration } from 'src/config/redis.config';
 
 @Injectable()
 export class RedisService extends Redis implements OnModuleInit, OnModuleDestroy {
