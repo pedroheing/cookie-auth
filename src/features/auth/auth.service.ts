@@ -8,6 +8,7 @@ import * as crypto from 'node:crypto';
 import { PrismaService, PrismaTx } from 'src/common/prisma/prisma.service';
 import { AuthConfig, authConfigRegistration } from 'src/config/auth.config';
 import { PasswordHashingService } from 'src/common/password-hashing/password-hashing.service';
+import * as AsyncLock from 'async-lock';
 
 interface CreateSessionResult {
 	session: Session;
@@ -22,6 +23,8 @@ interface ValidateUserSessionResult {
 
 @Injectable()
 export class AuthService {
+	private readonly lock = new AsyncLock();
+
 	constructor(
 		private readonly prismaService: PrismaService,
 		private readonly redisService: RedisService,
@@ -92,7 +95,7 @@ export class AuthService {
 		if (!session || session.status === SessionStatus.Revoked) {
 			return;
 		}
-		// removes first from cache due to racing conditions
+		// removes first from cache as is the first to be checked
 		await this.removeSessionFromCache(session.token_hash);
 		await this.prismaService.session.update({
 			where: {
@@ -105,18 +108,15 @@ export class AuthService {
 		});
 	}
 
-	public async validateUserSession(sessionToken: string): Promise<ValidateUserSessionResult | null> {
-		const tokenHash = this.getSessionTokenHash(sessionToken);
-		let session = await this.getSessionFromCache(tokenHash);
+	public async validateSession(sessionToken: string): Promise<ValidateUserSessionResult | null> {
+		const tokenhash = this.getSessionTokenHash(sessionToken);
+		return this._validateSession(tokenhash);
+	}
+
+	private async _validateSession(tokenHash: string) {
+		let session = await this.getSessionFromCacheOrDatabase(tokenHash);
 		if (!session) {
-			session = await this.prismaService.session.findUnique({
-				where: {
-					token_hash: tokenHash,
-				},
-			});
-			if (!session) {
-				return null;
-			}
+			return null;
 		}
 		if (session.status !== SessionStatus.Active) {
 			return null;
@@ -125,18 +125,49 @@ export class AuthService {
 		if (hasSessionExpired) {
 			return null;
 		}
-		let newSessionToken: string | undefined;
 		const hasTokenExpired = isBefore(session.last_token_issued_at, subHours(new Date(), this.authConfig.sessionTokenTTLInHours));
 		if (hasTokenExpired) {
-			const result = await this.refreshSessionToken(session.session_id);
-			session = result.session;
-			sessionToken = result.sessionToken;
-			newSessionToken = result.sessionToken;
-			// allows older session to be valid for an extra time to finish concurrent calls
-			await this.redisService.expire(this.getRedisSessionKey(tokenHash), this.authConfig.authSessionCacheTTLAterTokenRefreshInSeconds);
+			const oldSessionTokenhash = tokenHash;
+			const lockKey = `lock:session-refresh:${oldSessionTokenhash}`;
+			// async-lock is a good enough solution for one server
+			// but for a distributed system with horizontal scalling we should use BullMQ
+			return this.lock.acquire<ValidateUserSessionResult | null>(lockKey, async () => {
+				const sessionTokenRefreshResultKey = `refreshed:session:${oldSessionTokenhash}`;
+				const newSessionTokenHash = await this.redisService.get(sessionTokenRefreshResultKey);
+				if (newSessionTokenHash) {
+					return this._validateSession(newSessionTokenHash);
+				}
+				const refreshResult = await this.refreshSessionToken(session.session_id);
+				await this.addSessionToCache(refreshResult.session);
+				// allows older session to be valid for an extra time to finish concurrent calls
+				await this.redisService.expire(this.getRedisSessionKey(oldSessionTokenhash), this.authConfig.authSessionCacheTTLAterTokenRefreshInSeconds);
+				// stores result of the token refresh for the next concurrent call on the queue
+				await this.redisService.setex(
+					sessionTokenRefreshResultKey,
+					this.authConfig.authSessionTokenRefreshedCacheTTLInSeconds,
+					this.getSessionTokenHash(refreshResult.sessionToken),
+				);
+				return { userId: session.user_id, newSessionToken: refreshResult.sessionToken };
+			});
 		}
-		await this.addSessionToCache(session);
-		return { userId: session.user_id, newSessionToken };
+		return { userId: session.user_id };
+	}
+
+	private async getSessionFromCacheOrDatabase(tokenHash: string): Promise<Session | null> {
+		const cachedSession = await this.getSessionFromCache(tokenHash);
+		if (cachedSession) {
+			await this.redisService.expire(this.getRedisSessionKey(tokenHash), this.authConfig.cacheLifespanInSeconds);
+			return cachedSession;
+		}
+		const dbSession = await this.prismaService.session.findUnique({
+			where: {
+				token_hash: tokenHash,
+			},
+		});
+		if (dbSession) {
+			await this.addSessionToCache(dbSession);
+		}
+		return dbSession;
 	}
 
 	private async refreshSessionToken(sessionId: number): Promise<CreateSessionResult> {
