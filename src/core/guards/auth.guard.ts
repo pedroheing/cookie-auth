@@ -24,7 +24,7 @@ export class AuthGuard implements CanActivate {
 		if (!sessionToken) {
 			throw new UnauthorizedException();
 		}
-		const validationResult = await this.authService.validateUserSession(sessionToken);
+		const validationResult = await this.authService.validateSession(sessionToken);
 		if (!validationResult) {
 			response.clearCookie(this.authConfig.cookie.name);
 			throw new UnauthorizedException();
