@@ -8,7 +8,7 @@ import * as crypto from 'node:crypto';
 import { PrismaService, PrismaTx } from 'src/common/prisma/prisma.service';
 import { AuthConfig, authConfigRegistration } from 'src/config/auth.config';
 import { PasswordHashingService } from 'src/common/password-hashing/password-hashing.service';
-import * as AsyncLock from 'async-lock';
+import { DistributedLockService } from 'src/common/distributed-lock/distributed-lock.service';
 
 interface CreateSessionResult {
 	session: Session;
@@ -23,13 +23,12 @@ interface ValidateUserSessionResult {
 
 @Injectable()
 export class AuthService {
-	private readonly lock = new AsyncLock();
-
 	constructor(
 		private readonly prismaService: PrismaService,
 		private readonly redisService: RedisService,
 		private readonly passwordHashService: PasswordHashingService,
 		@Inject(authConfigRegistration.KEY) private readonly authConfig: AuthConfig,
+		private readonly distributedLockService: DistributedLockService,
 	) {}
 
 	public async signUp(dto: SignUpDto): Promise<string> {
@@ -129,9 +128,8 @@ export class AuthService {
 		if (hasTokenExpired) {
 			const oldSessionTokenhash = tokenHash;
 			const lockKey = `lock:session-refresh:${oldSessionTokenhash}`;
-			// async-lock is a good enough solution for one server
-			// but for a distributed system with horizontal scalling we should use BullMQ
-			return this.lock.acquire<ValidateUserSessionResult | null>(lockKey, async () => {
+			const lock = await this.distributedLockService.acquire(lockKey);
+			try {
 				const sessionTokenRefreshResultKey = `refreshed:session:${oldSessionTokenhash}`;
 				const newSessionTokenHash = await this.redisService.get(sessionTokenRefreshResultKey);
 				if (newSessionTokenHash) {
@@ -148,7 +146,9 @@ export class AuthService {
 					this.getSessionTokenHash(refreshResult.sessionToken),
 				);
 				return { userId: session.user_id, newSessionToken: refreshResult.sessionToken };
-			});
+			} finally {
+				await lock.release();
+			}
 		}
 		return { userId: session.user_id };
 	}
