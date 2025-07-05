@@ -12,12 +12,13 @@ import { APP_GUARD } from '@nestjs/core';
 import { AuthGuard } from './core/guards/auth.guard';
 import { PostModule } from './features/post/post.module';
 import { DistributedLockModule } from './common/distributed-lock/distributed-lock.module';
+import { distributedLockConfigRegistration } from './config/distributed-lock.config';
 
 @Module({
 	imports: [
 		ConfigModule.forRoot({
 			isGlobal: true,
-			load: [authConfigRegistration, redisConfigRegistration],
+			load: [authConfigRegistration, redisConfigRegistration, distributedLockConfigRegistration],
 		}),
 		RedisModule,
 		PrismaModule,
