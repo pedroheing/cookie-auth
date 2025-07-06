@@ -6,25 +6,37 @@ export class Lock {
 	constructor(
 		private readonly redisService: RedisService,
 		private readonly key: string,
+		private readonly value: string,
 		private readonly lockExpirationTimeInSeconds: number,
 	) {
 		this.createRenewLockInterval();
 	}
 
+	private clearRenewLockInterval() {
+		clearInterval(this.renewLockInterval);
+	}
+
 	private createRenewLockInterval() {
 		if (this.renewLockInterval) {
-			clearInterval(this.renewLockInterval);
+			this.clearRenewLockInterval();
 		}
 		this.renewLockInterval = setInterval(
-			() => {
-				this.redisService.expire(this.key, this.lockExpirationTimeInSeconds);
+			async () => {
+				try {
+					const result = await this.redisService.renewLock(this.key, this.value, this.lockExpirationTimeInSeconds);
+					if (result === 0) {
+						this.clearRenewLockInterval();
+					}
+				} catch (e) {
+					this.clearRenewLockInterval();
+				}
 			},
 			Math.floor(this.lockExpirationTimeInSeconds / 2) * 1000,
 		);
 	}
 
 	public async release(): Promise<void> {
-		clearInterval(this.renewLockInterval);
-		await this.redisService.del(this.key);
+		this.clearRenewLockInterval();
+		await this.redisService.releaseLock(this.key, this.value);
 	}
 }
