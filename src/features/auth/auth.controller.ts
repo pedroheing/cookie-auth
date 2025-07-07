@@ -1,10 +1,12 @@
-import { Body, Controller, HttpCode, HttpStatus, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Post, Req, Res } from '@nestjs/common';
 import { SignUpDto } from './dto/sign-up.dto';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { SignInDto } from './dto/sign-in.dto';
 import { AuthConfig, authConfigRegistration } from 'src/config/auth.config';
 import { Public } from 'src/core/decorators/public-route.decorator';
+import { AutenticatedRequest } from 'src/core/guards/auth.guard';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -30,13 +32,21 @@ export class AuthController {
 
 	@HttpCode(HttpStatus.OK)
 	@Post('sign-out')
-	public async signOut(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-		const sessionToken = req.cookies?.[this.authConfig.cookie.name];
-		if (!sessionToken) {
-			return;
-		}
-		await this.authenticationService.signOut(sessionToken);
+	public async signOut(@Req() req: AutenticatedRequest, @Res({ passthrough: true }) res: Response) {
+		await this.authenticationService.signOut(req.user.sessionToken);
 		res.clearCookie(this.authConfig.cookie.name);
+	}
+
+	@HttpCode(HttpStatus.OK)
+	@Post('change-password')
+	public async changePassword(@Req() req: AutenticatedRequest, @Body() dto: ChangePasswordDto) {
+		const user = req.user;
+		await this.authenticationService.changePassword({
+			currentPassword: dto.currentPassword,
+			newPassword: dto.newPassword,
+			sessionToken: user.sessionToken,
+			userId: user.userId,
+		});
 	}
 
 	private addSessionTokenToResponseCookie(res: Response, sessionToken: string) {

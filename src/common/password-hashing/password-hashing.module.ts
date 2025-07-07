@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { PasswordHashingService as PasswordHashingService } from './password-hashing.service';
-import { Argon2Service } from './argon2/argon2';
+import { Argon2Service } from './providers/argon2';
 import { PasswordHashingProvider } from './password-hashing-provider.interface';
 
 const passwordHashService = {

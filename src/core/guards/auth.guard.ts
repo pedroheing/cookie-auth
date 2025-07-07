@@ -5,6 +5,13 @@ import { AuthConfig, authConfigRegistration } from 'src/config/auth.config';
 import { AuthService } from 'src/features/auth/auth.service';
 import { IS_PUBLIC_KEY } from '../decorators/public-route.decorator';
 
+export interface AutenticatedRequest extends Request {
+	user: {
+		userId: number;
+		sessionToken: string;
+	};
+}
+
 @Injectable()
 export class AuthGuard implements CanActivate {
 	constructor(
@@ -20,7 +27,7 @@ export class AuthGuard implements CanActivate {
 		}
 		const request = context.switchToHttp().getRequest() as Request;
 		const response = context.switchToHttp().getResponse() as Response;
-		const sessionToken = request.cookies?.[this.authConfig.cookie.name];
+		let sessionToken = request.cookies?.[this.authConfig.cookie.name];
 		if (!sessionToken) {
 			throw new UnauthorizedException();
 		}
@@ -30,10 +37,12 @@ export class AuthGuard implements CanActivate {
 			throw new UnauthorizedException();
 		}
 		if (validationResult.newSessionToken) {
+			sessionToken = validationResult.newSessionToken;
 			response.cookie(this.authConfig.cookie.name, validationResult.newSessionToken, this.authConfig.cookie);
 		}
 		request['user'] = {
 			userId: validationResult.userId,
+			sessionToken: sessionToken,
 		};
 		return true;
 	}
