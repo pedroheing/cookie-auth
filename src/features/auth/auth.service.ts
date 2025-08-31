@@ -9,7 +9,6 @@ import { PrismaService, PrismaTx } from 'src/common/prisma/prisma.service';
 import { AuthConfig, authConfigRegistration } from 'src/config/auth.config';
 import { PasswordHashingService } from 'src/common/password-hashing/password-hashing.service';
 import { DistributedLockService } from 'src/common/distributed-lock/distributed-lock.service';
-import { ChangePasswordDto } from './dto/change-password.dto';
 
 interface CreateSessionResult {
 	session: Session;
@@ -55,7 +54,7 @@ export class AuthService {
 					if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
 						throw new ConflictException('Username already in use.');
 					}
-					throw err;
+					throw new InternalServerErrorException('An unexpected DB error occurred.');
 				});
 			return this.createSession(user.user_id, tx);
 		});
@@ -88,7 +87,7 @@ export class AuthService {
 		return result.sessionToken;
 	}
 
-	public async signOut(sessionToken: string) {
+	public async signOut(sessionToken: string): Promise<void> {
 		const tokenHash = this.getSessionTokenHash(sessionToken);
 		const session = await this.prismaService.session.findUnique({
 			where: {
@@ -134,7 +133,7 @@ export class AuthService {
 			throw new UnauthorizedException('It was not possible to verify your current password');
 		}
 		const newPassWordHash = await this.passwordHashService.hash(input.newPassword);
-		this.prismaService
+		return this.prismaService
 			.$transaction(async (tx: PrismaTx) => {
 				await tx.user.update({
 					where: {
@@ -167,7 +166,7 @@ export class AuthService {
 		return this._validateSession(tokenhash);
 	}
 
-	private async _validateSession(tokenHash: string) {
+	private async _validateSession(tokenHash: string): Promise<ValidateUserSessionResult | null> {
 		const session = await this.getSessionFromCacheOrDatabase(tokenHash);
 		if (!session) {
 			return null;
@@ -181,34 +180,37 @@ export class AuthService {
 		}
 		const hasTokenExpired = isBefore(session.last_token_issued_at, subHours(new Date(), this.authConfig.sessionTokenTTLInHours));
 		if (hasTokenExpired) {
-			const oldSessionTokenhash = tokenHash;
-			const lockKey = `lock:session-refresh:${oldSessionTokenhash}`;
-			const lock = await this.distributedLockService.acquire(lockKey);
-			try {
-				const sessionTokenRefreshResultKey = `refreshed:session:${oldSessionTokenhash}`;
-				const newSessionTokenHash = await this.redisService.get(sessionTokenRefreshResultKey);
-				if (newSessionTokenHash) {
-					return this._validateSession(newSessionTokenHash);
-				}
-				const refreshResult = await this.refreshSessionToken(session.session_id);
-				await this.addSessionToCache(refreshResult.session);
-				// allows older session to be valid for an extra time to finish concurrent calls
-				await this.redisService.expire(
-					this.buildRedisSessionKey(session.user_id, oldSessionTokenhash),
-					this.authConfig.authSessionCacheTTLAterTokenRefreshInSeconds,
-				);
-				// stores result of the token refresh for the next concurrent call on the queue
-				await this.redisService.setex(
-					sessionTokenRefreshResultKey,
-					this.authConfig.authSessionTokenRefreshedCacheTTLInSeconds,
-					this.getSessionTokenHash(refreshResult.sessionToken),
-				);
-				return { userId: session.user_id, newSessionToken: refreshResult.sessionToken };
-			} finally {
-				await lock.release();
-			}
+			return this.renewToken(session, tokenHash);
 		}
 		return { userId: session.user_id };
+	}
+
+	private async renewToken(session: Session, oldSessionTokenhash: string): Promise<ValidateUserSessionResult | null> {
+		const lockKey = `lock:session-refresh:${oldSessionTokenhash}`;
+		const lock = await this.distributedLockService.acquire(lockKey);
+		try {
+			const sessionTokenRefreshResultKey = `refreshed:session:${oldSessionTokenhash}`;
+			const newSessionTokenHash = await this.redisService.get(sessionTokenRefreshResultKey);
+			if (newSessionTokenHash) {
+				return this._validateSession(newSessionTokenHash);
+			}
+			const refreshResult = await this.refreshSessionToken(session.session_id);
+			await this.addSessionToCache(refreshResult.session);
+			// allows older session to be valid for an extra time to finish concurrent calls
+			await this.redisService.expire(
+				this.buildRedisSessionKey(session.user_id, oldSessionTokenhash),
+				this.authConfig.authSessionCacheTTLAterTokenRefreshInSeconds,
+			);
+			// stores result of the token refresh for the next concurrent call on the queue
+			await this.redisService.setex(
+				sessionTokenRefreshResultKey,
+				this.authConfig.authSessionTokenRefreshedCacheTTLInSeconds,
+				this.getSessionTokenHash(refreshResult.sessionToken),
+			);
+			return { userId: session.user_id, newSessionToken: refreshResult.sessionToken };
+		} finally {
+			await lock.release();
+		}
 	}
 
 	private async getSessionFromCacheOrDatabase(tokenHash: string): Promise<Session | null> {

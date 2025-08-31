@@ -27,38 +27,27 @@ export class DistributedLockService {
 		@Inject(distributedLockConfigRegistration.KEY) private readonly distributedLockConfig: DistributedLockConfig,
 	) {}
 
-	acquire(key: string, options?: DistributedLockOptions): Promise<Lock> {
-		return new Promise<Lock>((resolve, reject) => {
-			const lockValue = uuidv4();
-			const lockExpirationTimeInSeconds = options?.expirationTimeInSeconds ?? this.distributedLockConfig.expirationTimeInSeconds;
-			let timeoutCheck: NodeJS.Timeout;
-			let isTimedOut = false;
+	async acquire(key: string, options?: DistributedLockOptions): Promise<Lock> {
+		const lockValue = uuidv4();
+		const lockExpirationTimeInSeconds = options?.expirationTimeInSeconds ?? this.distributedLockConfig.expirationTimeInSeconds;
+		const timeoutInMs = options?.timeout;
+		const startTime = Date.now();
+		const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-			const acquireLock = () => {
-				// only sets if the key doesn't exist - VERY IMPORTANT
-				this.redisService.set(key, lockValue, 'EX', lockExpirationTimeInSeconds, 'NX', (err, result) => {
-					if (isTimedOut) {
-						return;
-					}
-					if (err) {
-						reject(err);
-					} else if (result === 'OK') {
-						clearTimeout(timeoutCheck);
-						resolve(new Lock(this.redisService, key, lockValue, lockExpirationTimeInSeconds));
-					} else {
-						setTimeout(acquireLock, 80 + Math.floor(Math.random() * 40)); // Jitter - 80-120 ms
-					}
-				});
-			};
-
-			acquireLock();
-
-			if (options?.timeout) {
-				timeoutCheck = setTimeout(() => {
-					isTimedOut = true;
-					reject(new Error('Timeout: Failed to acquire lock'));
-				}, options.timeout);
+		while (true) {
+			if (timeoutInMs && Date.now() - startTime > timeoutInMs) {
+				throw new Error('Timeout: Failed to acquire lock');
 			}
-		});
+			try {
+				const result = await this.redisService.set(key, lockValue, 'EX', lockExpirationTimeInSeconds, 'NX');
+				if (result === 'OK') {
+					return new Lock(this.redisService, key, lockValue, lockExpirationTimeInSeconds);
+				}
+			} catch (err) {
+				throw err;
+			}
+			const jitter = Math.floor(Math.random() * 40);
+			await delay(80 + jitter); // 80 - 120 ms
+		}
 	}
 }
