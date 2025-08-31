@@ -16,6 +16,7 @@ import { distributedLockConfigRegistration } from './config/distributed-lock.con
 
 @Module({
 	imports: [
+		// by default it searches for a .env on the root directory and loads its contents
 		ConfigModule.forRoot({
 			isGlobal: true,
 			load: [authConfigRegistration, redisConfigRegistration, distributedLockConfigRegistration],
