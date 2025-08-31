@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Inject, Post, Req, Res } from '@nestjs/common';
 import { SignUpDto } from './dto/sign-up.dto';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { SignInDto } from './dto/sign-in.dto';
 import { AuthConfig, authConfigRegistration } from 'src/config/auth.config';
@@ -41,7 +41,7 @@ export class AuthController {
 	@Post('change-password')
 	public async changePassword(@Req() req: AutenticatedRequest, @Body() dto: ChangePasswordDto) {
 		const user = req.user;
-		await this.authenticationService.changePassword({
+		return this.authenticationService.changePassword({
 			currentPassword: dto.currentPassword,
 			newPassword: dto.newPassword,
 			sessionToken: user.sessionToken,
