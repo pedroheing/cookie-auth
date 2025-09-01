@@ -1,34 +1,29 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DistributedLockService } from './distributed-lock.service';
+import { DistributedLockOptions, DistributedLockService } from './distributed-lock.service';
 import { RedisService } from '../redis/redis.service';
 import { distributedLockConfigRegistration } from 'src/config/distributed-lock.config';
 import { Lock } from './lock';
+import { mock, MockProxy } from 'jest-mock-extended';
 
-const redisServiceMock = {
-	set: jest.fn(),
-};
-
-const distributedLockConfigMock = {
+const distributedLockConfigMock: DistributedLockOptions = {
 	expirationTimeInSeconds: 30,
 };
 
 describe('DistributedLockService', () => {
 	let distributedLockService: DistributedLockService;
-	let redisService: typeof redisServiceMock;
+	let redisService: MockProxy<RedisService>;
 
 	beforeEach(async () => {
 		const module: TestingModule = await Test.createTestingModule({
 			providers: [
 				DistributedLockService,
-				{ provide: RedisService, useValue: redisServiceMock },
+				{ provide: RedisService, useValue: mock<RedisService>() },
 				{ provide: distributedLockConfigRegistration.KEY, useValue: distributedLockConfigMock },
 			],
 		}).compile();
 
 		distributedLockService = module.get<DistributedLockService>(DistributedLockService);
 		redisService = module.get(RedisService);
-
-		jest.clearAllMocks();
 	});
 
 	afterEach(() => {

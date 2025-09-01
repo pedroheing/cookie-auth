@@ -3,74 +3,42 @@ import { AuthService } from './auth.service';
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import { RedisService } from 'src/common/redis/redis.service';
 import { PasswordHashingService } from 'src/common/password-hashing/password-hashing.service';
-import { authConfigRegistration } from 'src/config/auth.config';
+import { AuthConfig, authConfigRegistration } from 'src/config/auth.config';
 import { DistributedLockService } from 'src/common/distributed-lock/distributed-lock.service';
 import { SignUpDto } from './dto/sign-up.dto';
 import { Prisma, SessionStatus } from '@prisma/client';
 import { ConflictException, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { addDays, addHours, sub, subHours } from 'date-fns';
+import { DeepMockProxy, mock, mockDeep, MockProxy } from 'jest-mock-extended';
+import { Environment } from 'src/config/config-factory';
+import { Lock } from 'src/common/distributed-lock/lock';
 
-const prismaServiceMock = {
-	user: {
-		create: jest.fn(),
-		findUnique: jest.fn(),
-		update: jest.fn(),
-	},
-	session: {
-		create: jest.fn(),
-		findUnique: jest.fn(),
-		update: jest.fn(),
-		updateMany: jest.fn(),
-	},
-	$transaction: jest.fn().mockImplementation(async (callback) => await callback(prismaServiceMock)),
-};
-
-const redisServiceMock = {
-	set: jest.fn(),
-	get: jest.fn(),
-	expire: jest.fn(),
-	setex: jest.fn(),
-	unlink: jest.fn(),
-	unlinkPattern: jest.fn(),
-};
-
-const passwordHashingServiceMock = {
-	hash: jest.fn(),
-	verify: jest.fn(),
-};
-
-const authConfigMock = {
-	sessionLifespanInDays: 10,
-	cacheLifespanInSeconds: 30,
-	sessionTokenTTLInHours: 24,
-	authSessionCacheTTLAterTokenRefreshInSeconds: 60,
-	authSessionTokenRefreshedCacheTTLInSeconds: 60,
-};
-
-const lockMock = {
-	release: jest.fn(),
-};
-
-const distributedLockServiceMock = {
-	acquire: jest.fn().mockResolvedValue(lockMock),
-};
+const authConfig = new AuthConfig({
+	AUTH_SESSION_LIFESPAN_IN_DAYS: 10,
+	AUTH_CACHE_LIFESPAN_SECONDS: 30,
+	AUTH_SESSION_TOKEN_TTL_IN_HOURS: 24,
+	AUTH_SESSION_CACHE_TTL_AFTER_TOKEN_REFRESH_IN_SECONDS: 60,
+	AUTH_COOKIE_NAME: 'id',
+	NODE_ENV: Environment.Development,
+});
 
 describe('AuthService', () => {
 	let authService: AuthService;
-	let prismaService: typeof prismaServiceMock;
-	let redisService: typeof redisServiceMock;
-	let passwordHashService: typeof passwordHashingServiceMock;
-	let distributedLockService: typeof distributedLockServiceMock;
+	let prismaService: DeepMockProxy<PrismaService>;
+	let redisService: MockProxy<RedisService>;
+	let passwordHashService: MockProxy<PasswordHashingService>;
+	let distributedLockService: MockProxy<DistributedLockService>;
+	let lock: MockProxy<Lock>;
 
 	beforeEach(async () => {
 		const module = await Test.createTestingModule({
 			providers: [
 				AuthService,
-				{ provide: PrismaService, useValue: prismaServiceMock },
-				{ provide: RedisService, useValue: redisServiceMock },
-				{ provide: PasswordHashingService, useValue: passwordHashingServiceMock },
-				{ provide: authConfigRegistration.KEY, useValue: authConfigMock },
-				{ provide: DistributedLockService, useValue: distributedLockServiceMock },
+				{ provide: PrismaService, useValue: mockDeep<PrismaService>() },
+				{ provide: RedisService, useValue: mock<RedisService>() },
+				{ provide: PasswordHashingService, useValue: mock<PasswordHashingService>() },
+				{ provide: authConfigRegistration.KEY, useValue: authConfig },
+				{ provide: DistributedLockService, useValue: mock<DistributedLockService>() },
 			],
 		}).compile();
 		authService = module.get(AuthService);
@@ -78,7 +46,9 @@ describe('AuthService', () => {
 		redisService = module.get(RedisService);
 		passwordHashService = module.get(PasswordHashingService);
 		distributedLockService = module.get(DistributedLockService);
-		jest.clearAllMocks();
+		lock = mock<Lock>();
+		distributedLockService.acquire.mockResolvedValue(lock);
+		prismaService.$transaction.mockImplementation(async (callback) => await callback(prismaService));
 	});
 
 	it('should be defined', () => {
@@ -86,6 +56,7 @@ describe('AuthService', () => {
 		expect(prismaService).toBeDefined();
 		expect(redisService).toBeDefined();
 		expect(passwordHashService).toBeDefined();
+		expect(authConfigRegistration.KEY).toBeDefined();
 		expect(distributedLockService).toBeDefined();
 	});
 
@@ -105,8 +76,8 @@ describe('AuthService', () => {
 			const session = { session_id: 1, user_id: 1, token_hash: 'any-hash' };
 
 			passwordHashService.hash.mockResolvedValue(hashedPassword);
-			prismaService.user.create.mockResolvedValue(user);
-			prismaService.session.create.mockResolvedValue(session);
+			prismaService.user.create.mockResolvedValue(user as any);
+			prismaService.session.create.mockResolvedValue(session as any);
 			jest.spyOn(authService as any, 'generateNewSessionToken').mockReturnValue(expectedToken);
 
 			//Act
@@ -164,9 +135,9 @@ describe('AuthService', () => {
 			// Arrange
 			const expectedToken = 'token';
 			const fakeSession = { session_id: 1, user_id: 1, token_hash: 'any-hash' };
-			prismaService.user.findUnique.mockResolvedValue(user);
+			prismaService.user.findUnique.mockResolvedValue(user as any);
 			passwordHashService.verify.mockResolvedValue(true);
-			prismaService.session.create.mockResolvedValue(fakeSession);
+			prismaService.session.create.mockResolvedValue(fakeSession as any);
 			jest.spyOn(authService as any, 'generateNewSessionToken').mockReturnValue(expectedToken);
 
 			// Act
@@ -194,7 +165,7 @@ describe('AuthService', () => {
 
 		it('should throw UnauthorizedException when the password does not match', async () => {
 			// Arrange
-			prismaService.user.findUnique.mockResolvedValue(user);
+			prismaService.user.findUnique.mockResolvedValue(user as any);
 			passwordHashService.verify.mockResolvedValue(false);
 
 			// Act && Assert
@@ -213,7 +184,7 @@ describe('AuthService', () => {
 				token_hash: '',
 				user_id: 1,
 			};
-			prismaService.session.findUnique.mockResolvedValue(session);
+			prismaService.session.findUnique.mockResolvedValue(session as any);
 			jest.spyOn(authService as any, 'getSessionTokenHash').mockReturnValue(tokenHash);
 
 			// Act
@@ -263,7 +234,7 @@ describe('AuthService', () => {
 				token_hash: tokenHash,
 				user_id: 1,
 			};
-			prismaService.session.findUnique.mockResolvedValue(session);
+			prismaService.session.findUnique.mockResolvedValue(session as any);
 			jest.spyOn(authService as any, 'getSessionTokenHash').mockReturnValue(tokenHash);
 
 			// Act
@@ -300,7 +271,7 @@ describe('AuthService', () => {
 
 		it('should change the user password and revoke other sessions from database and remove from the cache', async () => {
 			// Arrange
-			prismaService.user.findUnique.mockResolvedValue(userFromDb);
+			prismaService.user.findUnique.mockResolvedValue(userFromDb as any);
 			passwordHashService.verify.mockResolvedValue(true);
 			passwordHashService.hash.mockResolvedValue(hashNewPassword);
 
@@ -344,7 +315,7 @@ describe('AuthService', () => {
 
 		it('should throw UnauthorizedException when passing the wrong password', async () => {
 			// Arrange
-			prismaService.user.findUnique.mockResolvedValue(userFromDb);
+			prismaService.user.findUnique.mockResolvedValue(userFromDb as any);
 			passwordHashService.verify.mockResolvedValue(false);
 
 			// Act && Assert
@@ -354,7 +325,7 @@ describe('AuthService', () => {
 
 		it('should throw InternalServerErrorException when the transaction fails', async () => {
 			// Arrange
-			prismaService.user.findUnique.mockResolvedValue(userFromDb);
+			prismaService.user.findUnique.mockResolvedValue(userFromDb as any);
 			passwordHashService.verify.mockResolvedValue(true);
 			prismaService.user.update.mockRejectedValue(new Error('DB transaction failed'));
 
@@ -435,20 +406,20 @@ describe('AuthService', () => {
 			const session = {
 				status: SessionStatus.Active,
 				expires_at: addHours(new Date(), 1),
-				last_token_issued_at: subHours(new Date(), authConfigMock.sessionTokenTTLInHours + 1),
+				last_token_issued_at: subHours(new Date(), authConfig.sessionTokenTTLInHours + 1),
 				user_id: 1,
 			};
 			const newSessionToken = 'new-session-token';
 			const refreshedSession = {
 				status: SessionStatus.Active,
-				expires_at: addDays(new Date(), authConfigMock.sessionLifespanInDays),
+				expires_at: addDays(new Date(), authConfig.sessionLifespanInDays),
 				last_token_issued_at: new Date(),
 				user_id: 1,
 			};
 			jest.spyOn(authService as any, 'getSessionFromCacheOrDatabase').mockReturnValue(session);
 			jest.spyOn(authService as any, 'generateNewSessionToken').mockReturnValue(newSessionToken);
 			redisService.get.mockResolvedValue(null); // no refresh done, is the winner
-			prismaService.session.update.mockResolvedValue(refreshedSession);
+			prismaService.session.update.mockResolvedValue(refreshedSession as any);
 
 			// Act
 			const result = await authService.validateSession('session-token');
@@ -456,7 +427,7 @@ describe('AuthService', () => {
 			// Assert
 			expect(result).toEqual({ userId: session.user_id, newSessionToken: newSessionToken });
 			expect(distributedLockService.acquire).toHaveBeenCalled(); // makes sure that it uses a concurrent lock
-			expect(lockMock.release).toHaveBeenCalled(); // IMPORTANT: makes sure that it releases the lock
+			expect(lock.release).toHaveBeenCalled(); // IMPORTANT: makes sure that it releases the lock
 			expect(prismaService.session.update).toHaveBeenCalled(); // updates the session with new token and expiration dates
 			expect(redisService.get).toHaveBeenCalled(); // tries to find the result of the refresh, done by other call
 			expect(redisService.set).toHaveBeenCalled(); // sets the new session to the cache
@@ -469,13 +440,13 @@ describe('AuthService', () => {
 			const session = {
 				status: SessionStatus.Active,
 				expires_at: addHours(new Date(), 1),
-				last_token_issued_at: subHours(new Date(), authConfigMock.sessionTokenTTLInHours + 1),
+				last_token_issued_at: subHours(new Date(), authConfig.sessionTokenTTLInHours + 1),
 				user_id: 1,
 			};
 			const newSessionTokenhash = 'new-session-token-hash';
 			const refreshedSession = {
 				status: SessionStatus.Active,
-				expires_at: addDays(new Date(), authConfigMock.sessionLifespanInDays),
+				expires_at: addDays(new Date(), authConfig.sessionLifespanInDays),
 				last_token_issued_at: new Date(),
 				user_id: 1,
 			};
@@ -489,7 +460,7 @@ describe('AuthService', () => {
 			// Assert
 			expect(result).toEqual({ userId: session.user_id });
 			expect(distributedLockService.acquire).toHaveBeenCalled(); // makes sure that it uses a concurrent lock
-			expect(lockMock.release).toHaveBeenCalled(); // IMPORTANT: makes sure that it releases the lock
+			expect(lock.release).toHaveBeenCalled(); // IMPORTANT: makes sure that it releases the lock
 			expect(redisService.get).toHaveBeenCalled(); // tries to find the result of the refresh, done by other call
 		});
 	});

@@ -3,8 +3,9 @@ import { RedisService } from '../redis/redis.service';
 import { Lock } from './lock';
 import { DistributedLockConfig, distributedLockConfigRegistration } from 'src/config/distributed-lock.config';
 import { v4 as uuidv4 } from 'uuid';
+import { setTimeout } from 'node:timers/promises';
 
-interface DistributedLockOptions {
+export interface DistributedLockOptions {
 	/**
 	 * Max amount of time an item can remain in the queue before acquiring the lock.
 	 *
@@ -32,22 +33,17 @@ export class DistributedLockService {
 		const lockExpirationTimeInSeconds = options?.expirationTimeInSeconds ?? this.distributedLockConfig.expirationTimeInSeconds;
 		const timeoutInMs = options?.timeout;
 		const startTime = Date.now();
-		const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
 		while (true) {
 			if (timeoutInMs && Date.now() - startTime > timeoutInMs) {
 				throw new Error('Timeout: Failed to acquire lock');
 			}
-			try {
-				const result = await this.redisService.set(key, lockValue, 'EX', lockExpirationTimeInSeconds, 'NX');
-				if (result === 'OK') {
-					return new Lock(this.redisService, key, lockValue, lockExpirationTimeInSeconds);
-				}
-			} catch (err) {
-				throw err;
+			const result = await this.redisService.set(key, lockValue, 'EX', lockExpirationTimeInSeconds, 'NX');
+			if (result === 'OK') {
+				return new Lock(this.redisService, key, lockValue, lockExpirationTimeInSeconds);
 			}
 			const jitter = Math.floor(Math.random() * 40);
-			await delay(80 + jitter); // 80 - 120 ms
+			await setTimeout(80 + jitter); // 80 - 120 ms
 		}
 	}
 }
