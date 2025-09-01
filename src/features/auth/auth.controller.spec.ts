@@ -1,53 +1,37 @@
 import { Test } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { authConfigRegistration } from 'src/config/auth.config';
+import { AuthConfig, authConfigRegistration } from 'src/config/auth.config';
 import { SignUpDto } from './dto/sign-up.dto';
 import { SignInDto } from './dto/sign-in.dto';
-import { mock } from 'jest-mock-extended';
+import { mock, MockProxy } from 'jest-mock-extended';
 import { Response } from 'express';
+import { Environment } from 'src/config/config-factory';
+import { AutenticatedRequest } from 'src/core/guards/auth.guard';
 
-const authServiceMock = {
-	signUp: jest.fn(),
-	signIn: jest.fn(),
-	signOut: jest.fn(),
-};
-
-const authConfigMock = {
-	sessionLifespanInDays: 10,
-	cacheLifespanInSeconds: 30,
-	sessionTokenTTLInHours: 24,
-	authSessionCacheTTLAterTokenRefreshInSeconds: 60,
-	authSessionTokenRefreshedCacheTTLInSeconds: 60,
-	cookie: {
-		name: 'cookie',
-		maxAge: 10000,
-		httpOnly: true,
-		secure: true,
-		sameSite: 'lax',
-	},
-};
+const authConfig = new AuthConfig({
+	AUTH_SESSION_LIFESPAN_IN_DAYS: 10,
+	AUTH_CACHE_LIFESPAN_SECONDS: 30,
+	AUTH_SESSION_TOKEN_TTL_IN_HOURS: 24,
+	AUTH_SESSION_CACHE_TTL_AFTER_TOKEN_REFRESH_IN_SECONDS: 60,
+	AUTH_COOKIE_NAME: 'id',
+	NODE_ENV: Environment.Development,
+});
 
 describe('AuthController', () => {
 	let authController: AuthController;
-	let authService: typeof authServiceMock;
-	const request = {
-		user: {
-			userId: 1,
-			sessionToken: 'session-token',
-		},
-	};
-	let response: Response;
+	let authService: MockProxy<AuthService>;
+	let response: MockProxy<Response>;
+	let request: MockProxy<AutenticatedRequest>;
 
 	beforeEach(async () => {
 		const module = await Test.createTestingModule({
-			providers: [AuthController, { provide: AuthService, useValue: authServiceMock }, { provide: authConfigRegistration.KEY, useValue: authConfigMock }],
+			providers: [AuthController, { provide: AuthService, useValue: mock<AuthService>() }, { provide: authConfigRegistration.KEY, useValue: authConfig }],
 		}).compile();
 		authController = module.get(AuthController);
 		authService = module.get(AuthService);
 		response = mock<Response>();
-
-		jest.clearAllMocks();
+		request = mock<AutenticatedRequest>();
 	});
 
 	it('should be defined', () => {
@@ -72,7 +56,7 @@ describe('AuthController', () => {
 
 			// Assert
 			expect(authService.signUp).toHaveBeenCalledWith(singUpDto);
-			expect(response.cookie).toHaveBeenCalledWith(authConfigMock.cookie.name, newToken, authConfigMock.cookie);
+			expect(response.cookie).toHaveBeenCalledWith(authConfig.cookie.name, newToken, authConfig.cookie);
 		});
 	});
 
@@ -91,21 +75,24 @@ describe('AuthController', () => {
 
 			// Assert
 			expect(authService.signIn).toHaveBeenCalledWith(singInDto.username, singInDto.password);
-			expect(response.cookie).toHaveBeenCalledWith(authConfigMock.cookie.name, newToken, authConfigMock.cookie);
+			expect(response.cookie).toHaveBeenCalledWith(authConfig.cookie.name, newToken, authConfig.cookie);
 		});
 	});
 
 	describe('signOut', () => {
 		it('should call the signOut method and clear the cookie', async () => {
 			// Arrange
-			authService.signOut.mockResolvedValue(null);
+			request.user = {
+				userId: 1,
+				sessionToken: 'session-token',
+			};
 
 			// Act
-			await authController.signOut(request as any, response);
+			await authController.signOut(request, response);
 
 			// Assert
 			expect(authService.signOut).toHaveBeenCalledWith(request.user.sessionToken);
-			expect(response.clearCookie).toHaveBeenCalledWith(authConfigMock.cookie.name);
+			expect(response.clearCookie).toHaveBeenCalledWith(authConfig.cookie.name);
 		});
 	});
 });
