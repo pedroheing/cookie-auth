@@ -21,34 +21,28 @@ const authConfig = new AuthConfig({
 
 describe('AuthGuard', () => {
 	let authGuard: AuthGuard;
-	let authService: MockProxy<AuthService>;
-	let reflector: MockProxy<Reflector>;
-	let request: MockProxy<AutenticatedRequest>;
-	let response: MockProxy<Response>;
-	let httpArgumentsHost: MockProxy<HttpArgumentsHost>;
-	let context: MockProxy<ExecutionContext>;
+	const authService = mock<AuthService>();
+	const reflector = mock<Reflector>();
+	const request = mock<AutenticatedRequest>();
+	const response = mock<Response>();
+	const httpArgumentsHost = mock<HttpArgumentsHost>();
+	const context = mock<ExecutionContext>();
 
 	beforeEach(async () => {
 		const module = await Test.createTestingModule({
 			providers: [
 				AuthGuard,
-				{ provide: AuthService, useValue: mock<AuthService>() },
+				{ provide: AuthService, useValue: authService },
 				{ provide: authConfigRegistration.KEY, useValue: authConfig },
-				{ provide: Reflector, useValue: mock<Reflector>() },
+				{ provide: Reflector, useValue: reflector },
 			],
 		}).compile();
 		authGuard = module.get(AuthGuard);
-		authService = module.get(AuthService);
-		reflector = module.get(Reflector);
-
-		request = mock<AutenticatedRequest>();
-		response = mock<Response>();
-		httpArgumentsHost = mock<HttpArgumentsHost>();
-		context = mock<ExecutionContext>();
-
 		httpArgumentsHost.getRequest.mockReturnValue(request);
 		httpArgumentsHost.getResponse.mockReturnValue(response);
 		context.switchToHttp.mockReturnValue(httpArgumentsHost);
+		// by default routes should be private
+		reflector.getAllAndOverride.mockReturnValue(false);
 	});
 
 	it('should be defined', () => {
@@ -66,7 +60,6 @@ describe('AuthGuard', () => {
 			request.cookies = {
 				[authConfig.cookie.name]: sessionToken,
 			};
-			reflector.getAllAndOverride.mockReturnValue(false); // route is not public
 			authService.validateSession.mockResolvedValue({ userId: userId });
 
 			// Act
@@ -94,27 +87,24 @@ describe('AuthGuard', () => {
 
 		it('should throw UnauthorizedException when the cookie is not found', async () => {
 			// Arrange
-			reflector.getAllAndOverride.mockReturnValue(false); // route is not public
 			request.cookies = {};
 			// Act && Assert
 			await expect(authGuard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-			expect(authService.validateSession).not.toHaveBeenCalled(); // it should throw the error before it reaches the validation
+			expect(authService.validateSession).not.toHaveBeenCalled();
 		});
 
 		test.each([undefined, null, ''])("should throw UnauthorizedException when there is falsy value '%s' on the cookie", async (tokenValue) => {
 			// Arrange
-			reflector.getAllAndOverride.mockReturnValue(false); // route is not public
 			request.cookies = {
 				[authConfig.cookie.name]: tokenValue,
 			};
 			// Act && Assert
 			await expect(authGuard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-			expect(authService.validateSession).not.toHaveBeenCalled(); // it should throw the error before it reaches the validation
+			expect(authService.validateSession).not.toHaveBeenCalled();
 		});
 
 		it('should throw UnauthorizedException and clear the cookie when the session is invalid', async () => {
 			// Arrange
-			reflector.getAllAndOverride.mockReturnValue(false); // route is not public
 			const sessionToken = 'token';
 			request.cookies = {
 				[authConfig.cookie.name]: sessionToken,
@@ -134,7 +124,6 @@ describe('AuthGuard', () => {
 			request.cookies = {
 				[authConfig.cookie.name]: sessionToken,
 			};
-			reflector.getAllAndOverride.mockReturnValue(false); // route is not public
 			authService.validateSession.mockResolvedValue({ userId: userId, newSessionToken: newSessionToken });
 
 			// Act

@@ -1,7 +1,8 @@
+import { setTimeout } from 'node:timers/promises';
 import { RedisService } from '../redis/redis.service';
 
 export class Lock {
-	private renewLockInterval: NodeJS.Timeout;
+	private wasReleased: boolean;
 
 	constructor(
 		private readonly redisService: RedisService,
@@ -12,31 +13,25 @@ export class Lock {
 		this.createRenewLockInterval();
 	}
 
-	private clearRenewLockInterval() {
-		clearInterval(this.renewLockInterval);
-	}
-
-	private createRenewLockInterval() {
-		if (this.renewLockInterval) {
-			this.clearRenewLockInterval();
-		}
-		this.renewLockInterval = setInterval(
-			async () => {
-				try {
-					const result = await this.redisService.renewLock(this.key, this.value, this.lockExpirationTimeInSeconds);
-					if (result === 0) {
-						this.clearRenewLockInterval();
-					}
-				} catch (e) {
-					this.clearRenewLockInterval();
+	private async createRenewLockInterval() {
+		while (true) {
+			if (this.wasReleased) {
+				break;
+			}
+			try {
+				const result = await this.redisService.renewLock(this.key, this.value, this.lockExpirationTimeInSeconds);
+				if (result === 0) {
+					break;
 				}
-			},
-			Math.floor(this.lockExpirationTimeInSeconds / 2) * 1000,
-		);
+			} catch (e) {
+				break;
+			}
+			await setTimeout(Math.floor(this.lockExpirationTimeInSeconds / 2) * 1000);
+		}
 	}
 
 	public async release(): Promise<void> {
-		this.clearRenewLockInterval();
+		this.wasReleased = true;
 		await this.redisService.releaseLock(this.key, this.value);
 	}
 }

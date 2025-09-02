@@ -9,25 +9,27 @@ const distributedLockConfigMock: DistributedLockOptions = {
 	expirationTimeInSeconds: 30,
 };
 
+jest.mock('./lock');
+
+jest.mock('node:timers/promises', () => {
+	return {
+		setTimeout: jest.fn(),
+	};
+});
+
 describe('DistributedLockService', () => {
 	let distributedLockService: DistributedLockService;
-	let redisService: MockProxy<RedisService>;
+	const redisService = mock<RedisService>();
 
 	beforeEach(async () => {
 		const module: TestingModule = await Test.createTestingModule({
 			providers: [
 				DistributedLockService,
-				{ provide: RedisService, useValue: mock<RedisService>() },
+				{ provide: RedisService, useValue: redisService },
 				{ provide: distributedLockConfigRegistration.KEY, useValue: distributedLockConfigMock },
 			],
 		}).compile();
-
 		distributedLockService = module.get<DistributedLockService>(DistributedLockService);
-		redisService = module.get(RedisService);
-	});
-
-	afterEach(() => {
-		jest.useRealTimers();
 	});
 
 	it('should be defined', () => {
@@ -40,23 +42,14 @@ describe('DistributedLockService', () => {
 		it('should acquire the lock when successfully setting the redis key', async () => {
 			// Arrange
 			const key = 'key';
-			jest.useFakeTimers();
 			redisService.set.mockResolvedValue('OK');
 
 			// Act
-			const acquirePromise = distributedLockService.acquire(key);
-			await jest.advanceTimersByTimeAsync(150);
-			const result = await acquirePromise;
+			await distributedLockService.acquire(key);
 
 			// Assert
 			const lockValue = (redisService.set as jest.Mock).mock.calls[0][1];
-			expect(result).toBeInstanceOf(Lock);
-			expect(result).toMatchObject({
-				redisService: redisService,
-				key: key,
-				value: lockValue,
-				lockExpirationTimeInSeconds: distributedLockConfigMock.expirationTimeInSeconds,
-			});
+			expect(Lock.prototype.constructor).toHaveBeenCalledWith(redisService, key, lockValue, distributedLockConfigMock.expirationTimeInSeconds);
 			expect(redisService.set).toHaveBeenCalledWith(key, lockValue, 'EX', distributedLockConfigMock.expirationTimeInSeconds, 'NX');
 		});
 
@@ -65,49 +58,31 @@ describe('DistributedLockService', () => {
 			const key = 'key';
 			const expirationTime = 10;
 			redisService.set.mockResolvedValue('OK');
-			jest.useFakeTimers();
 
 			// Act
-			const acquirePromise = distributedLockService.acquire(key, {
+			await distributedLockService.acquire(key, {
 				expirationTimeInSeconds: expirationTime,
 			});
-			await jest.advanceTimersByTimeAsync(150);
-			const result = await acquirePromise;
 
 			// Assert
 			const lockValue = (redisService.set as jest.Mock).mock.calls[0][1];
-			expect(result).toBeInstanceOf(Lock);
-			expect(result).toMatchObject({
-				redisService: redisService,
-				key: key,
-				value: lockValue,
-				lockExpirationTimeInSeconds: expirationTime,
-			});
+			expect(Lock.prototype.constructor).toHaveBeenCalledWith(redisService, key, lockValue, expirationTime);
 			expect(redisService.set).toHaveBeenCalledWith(key, lockValue, 'EX', expirationTime, 'NX');
 		});
 
 		it('should acquire the lock after retrying when the lock was in use and then was released', async () => {
 			// Arrange
 			const key = 'key';
-			jest.useFakeTimers();
 			// first call should return null, simulating that the key was taken by other service
 			// second call should return OK, simulating tha the key was released
 			redisService.set.mockResolvedValueOnce(null).mockResolvedValueOnce('OK');
 
 			// Act
-			const acquirePromise = distributedLockService.acquire(key);
-			await jest.advanceTimersByTimeAsync(150);
-			const result = await acquirePromise;
+			await distributedLockService.acquire(key);
 
 			// Assert
 			const lockValue = (redisService.set as jest.Mock).mock.calls[0][1];
-			expect(result).toBeInstanceOf(Lock);
-			expect(result).toMatchObject({
-				redisService: redisService,
-				key: key,
-				value: lockValue,
-				lockExpirationTimeInSeconds: distributedLockConfigMock.expirationTimeInSeconds,
-			});
+			expect(Lock.prototype.constructor).toHaveBeenCalledWith(redisService, key, lockValue, distributedLockConfigMock.expirationTimeInSeconds);
 			expect(redisService.set).toHaveBeenCalledTimes(2);
 			expect(redisService.set).toHaveBeenCalledWith(key, lockValue, 'EX', distributedLockConfigMock.expirationTimeInSeconds, 'NX');
 		});
