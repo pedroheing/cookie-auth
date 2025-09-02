@@ -4,7 +4,7 @@ import { AuthService } from './auth.service';
 import { AuthConfig, authConfigRegistration } from 'src/config/auth.config';
 import { SignUpDto } from './dto/sign-up.dto';
 import { SignInDto } from './dto/sign-in.dto';
-import { mock, MockProxy } from 'jest-mock-extended';
+import { mock } from 'jest-mock-extended';
 import { Response } from 'express';
 import { Environment } from 'src/config/config-factory';
 import { AutenticatedRequest } from 'src/core/guards/auth.guard';
@@ -20,23 +20,21 @@ const authConfig = new AuthConfig({
 
 describe('AuthController', () => {
 	let authController: AuthController;
-	let authService: MockProxy<AuthService>;
-	let response: MockProxy<Response>;
-	let request: MockProxy<AutenticatedRequest>;
+	const authService = mock<AuthService>();
+	const response = mock<Response>();
+	const request = mock<AutenticatedRequest>();
 
 	beforeEach(async () => {
 		const module = await Test.createTestingModule({
-			providers: [AuthController, { provide: AuthService, useValue: mock<AuthService>() }, { provide: authConfigRegistration.KEY, useValue: authConfig }],
+			providers: [AuthController, { provide: AuthService, useValue: authService }, { provide: authConfigRegistration.KEY, useValue: authConfig }],
 		}).compile();
 		authController = module.get(AuthController);
-		authService = module.get(AuthService);
-		response = mock<Response>();
-		request = mock<AutenticatedRequest>();
 	});
 
 	it('should be defined', () => {
 		expect(authController).toBeDefined();
 		expect(authService).toBeDefined();
+		expect(authConfigRegistration.KEY).toBeDefined();
 	});
 
 	describe('signUp', () => {

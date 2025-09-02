@@ -9,7 +9,7 @@ import { SignUpDto } from './dto/sign-up.dto';
 import { Prisma, SessionStatus } from '@prisma/client';
 import { ConflictException, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { addDays, addHours, sub, subHours } from 'date-fns';
-import { DeepMockProxy, mock, mockDeep, MockProxy } from 'jest-mock-extended';
+import { mock, mockDeep } from 'jest-mock-extended';
 import { Environment } from 'src/config/config-factory';
 import { Lock } from 'src/common/distributed-lock/lock';
 
@@ -24,29 +24,24 @@ const authConfig = new AuthConfig({
 
 describe('AuthService', () => {
 	let authService: AuthService;
-	let prismaService: DeepMockProxy<PrismaService>;
-	let redisService: MockProxy<RedisService>;
-	let passwordHashService: MockProxy<PasswordHashingService>;
-	let distributedLockService: MockProxy<DistributedLockService>;
-	let lock: MockProxy<Lock>;
+	const prismaService = mockDeep<PrismaService>();
+	const redisService = mock<RedisService>();
+	const passwordHashService = mock<PasswordHashingService>();
+	const distributedLockService = mock<DistributedLockService>();
+	const lock = mock<Lock>();
 
 	beforeEach(async () => {
 		const module = await Test.createTestingModule({
 			providers: [
 				AuthService,
-				{ provide: PrismaService, useValue: mockDeep<PrismaService>() },
-				{ provide: RedisService, useValue: mock<RedisService>() },
-				{ provide: PasswordHashingService, useValue: mock<PasswordHashingService>() },
+				{ provide: PrismaService, useValue: prismaService },
+				{ provide: RedisService, useValue: redisService },
+				{ provide: PasswordHashingService, useValue: passwordHashService },
 				{ provide: authConfigRegistration.KEY, useValue: authConfig },
-				{ provide: DistributedLockService, useValue: mock<DistributedLockService>() },
+				{ provide: DistributedLockService, useValue: distributedLockService },
 			],
 		}).compile();
 		authService = module.get(AuthService);
-		prismaService = module.get(PrismaService);
-		redisService = module.get(RedisService);
-		passwordHashService = module.get(PasswordHashingService);
-		distributedLockService = module.get(DistributedLockService);
-		lock = mock<Lock>();
 		distributedLockService.acquire.mockResolvedValue(lock);
 		prismaService.$transaction.mockImplementation(async (callback) => await callback(prismaService));
 	});
