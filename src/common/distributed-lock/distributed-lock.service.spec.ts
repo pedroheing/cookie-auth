@@ -3,7 +3,7 @@ import { DistributedLockOptions, DistributedLockService } from './distributed-lo
 import { RedisService } from '../redis/redis.service';
 import { distributedLockConfigRegistration } from 'src/config/distributed-lock.config';
 import { Lock } from './lock';
-import { mock, MockProxy } from 'jest-mock-extended';
+import { mock } from 'jest-mock-extended';
 
 const distributedLockConfigMock: DistributedLockOptions = {
 	expirationTimeInSeconds: 30,

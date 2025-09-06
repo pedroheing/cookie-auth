@@ -1,8 +1,8 @@
-import { setTimeout } from 'node:timers/promises';
 import { RedisService } from '../redis/redis.service';
+import { EventEmitter } from 'events';
 
-export class Lock {
-	private wasReleased: boolean;
+export class Lock extends EventEmitter {
+	private renewLockInterval: NodeJS.Timeout | null = null;
 
 	constructor(
 		private readonly redisService: RedisService,
@@ -10,28 +10,47 @@ export class Lock {
 		private readonly value: string,
 		private readonly lockExpirationTimeInSeconds: number,
 	) {
-		this.createRenewLockInterval();
+		super();
+		this.startAutoRenew();
 	}
 
-	private async createRenewLockInterval() {
-		while (true) {
-			if (this.wasReleased) {
-				break;
-			}
-			try {
-				const result = await this.redisService.renewLock(this.key, this.value, this.lockExpirationTimeInSeconds);
-				if (result === 0) {
-					break;
-				}
-			} catch (e) {
-				break;
-			}
-			await setTimeout(Math.floor(this.lockExpirationTimeInSeconds / 2) * 1000);
+	private stopAutoRenew() {
+		if (this.renewLockInterval) {
+			clearInterval(this.renewLockInterval);
+			this.renewLockInterval = null;
 		}
 	}
 
-	public async release(): Promise<void> {
-		this.wasReleased = true;
-		await this.redisService.releaseLock(this.key, this.value);
+	private startAutoRenew() {
+		if (this.renewLockInterval) {
+			this.stopAutoRenew();
+		}
+		const renewPeriodInMs = Math.floor(this.lockExpirationTimeInSeconds / 2) * 1000;
+		if (renewPeriodInMs <= 0) {
+			return;
+		}
+		this.renewLockInterval = setInterval(() => this.renewLock(), renewPeriodInMs);
+	}
+
+	private async renewLock() {
+		try {
+			const result = await this.redisService.renewLock(this.key, this.value, this.lockExpirationTimeInSeconds);
+			if (result === 0) {
+				this.handleLockLost(new Error(`Lock on key "${this.key}" was lost during renewal.`));
+			}
+		} catch (error) {
+			this.handleLockLost(error);
+		}
+	}
+
+	private handleLockLost(error: Error) {
+		this.stopAutoRenew();
+		this.emit('lost', error);
+	}
+
+	public async release(): Promise<boolean> {
+		this.stopAutoRenew();
+		const result = await this.redisService.releaseLock(this.key, this.value);
+		return result === 1;
 	}
 }
