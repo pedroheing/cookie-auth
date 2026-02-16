@@ -1,11 +1,11 @@
-import { RedisService } from '../redis/redis.service';
 import { EventEmitter } from 'events';
+import { LockService } from './lock.interface';
 
 export class Lock extends EventEmitter {
 	private renewLockInterval: NodeJS.Timeout | null = null;
 
 	constructor(
-		private readonly redisService: RedisService,
+		private readonly lockService: LockService,
 		private readonly key: string,
 		private readonly value: string,
 		private readonly lockExpirationTimeInSeconds: number,
@@ -34,11 +34,11 @@ export class Lock extends EventEmitter {
 
 	private async renewLock() {
 		try {
-			const result = await this.redisService.renewLock(this.key, this.value, this.lockExpirationTimeInSeconds);
-			if (result === 0) {
+			const sucess = await this.lockService.renew(this.key, this.value, this.lockExpirationTimeInSeconds);
+			if (!sucess) {
 				this.handleLockLost(new Error(`Lock on key "${this.key}" was lost during renewal.`));
 			}
-		} catch (error) {
+		} catch (error: any) {
 			this.handleLockLost(error);
 		}
 	}
@@ -50,7 +50,7 @@ export class Lock extends EventEmitter {
 
 	public async release(): Promise<boolean> {
 		this.stopAutoRenew();
-		const result = await this.redisService.releaseLock(this.key, this.value);
-		return result === 1;
+		const sucess = await this.lockService.release(this.key, this.value);
+		return sucess;
 	}
 }

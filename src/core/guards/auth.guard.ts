@@ -1,9 +1,9 @@
-import { CanActivate, ExecutionContext, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request, Response } from 'express';
-import { AuthConfig, authConfigRegistration } from 'src/config/auth.config';
-import { AuthService } from 'src/features/auth/auth.service';
 import { IS_PUBLIC_KEY } from '../decorators/public-route.decorator';
+import { AuthConfigService } from 'src/features/auth/config/auth-config.service';
+import { SessionService } from 'src/features/auth/session/session.service';
 
 export interface AutenticatedRequest extends Request {
 	user: {
@@ -15,8 +15,8 @@ export interface AutenticatedRequest extends Request {
 @Injectable()
 export class AuthGuard implements CanActivate {
 	constructor(
-		private authService: AuthService,
-		@Inject(authConfigRegistration.KEY) private readonly authConfig: AuthConfig,
+		private sessionService: SessionService,
+		private readonly authConfigService: AuthConfigService,
 		private reflector: Reflector,
 	) {}
 
@@ -27,18 +27,18 @@ export class AuthGuard implements CanActivate {
 		}
 		const request = context.switchToHttp().getRequest() as Request;
 		const response = context.switchToHttp().getResponse() as Response;
-		let sessionToken = request.cookies?.[this.authConfig.cookie.name];
+		let sessionToken = request.cookies?.[this.authConfigService.cookie.name];
 		if (!sessionToken) {
 			throw new UnauthorizedException();
 		}
-		const validationResult = await this.authService.validateSession(sessionToken);
+		const validationResult = await this.sessionService.validateSession(sessionToken);
 		if (!validationResult) {
-			response.clearCookie(this.authConfig.cookie.name);
+			response.clearCookie(this.authConfigService.cookie.name);
 			throw new UnauthorizedException();
 		}
 		if (validationResult.newSessionToken) {
 			sessionToken = validationResult.newSessionToken;
-			response.cookie(this.authConfig.cookie.name, validationResult.newSessionToken, this.authConfig.cookie);
+			response.cookie(this.authConfigService.cookie.name, validationResult.newSessionToken, this.authConfigService.cookie);
 		}
 		request['user'] = {
 			userId: validationResult.userId,
