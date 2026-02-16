@@ -1,19 +1,14 @@
-import { Global, Module } from '@nestjs/common';
-import { PasswordHashingService as PasswordHashingService } from './password-hashing.service';
+import { Module } from '@nestjs/common';
+import { PasswordHashingService } from './password-hashing.interface';
 import { Argon2Service } from './providers/argon2';
-import { PasswordHashingProvider } from './password-hashing-provider.interface';
 
-const passwordHashService = {
-	provide: PasswordHashingService,
-	useFactory: (passwordHashingProvider: PasswordHashingProvider) => {
-		return new PasswordHashingService(passwordHashingProvider);
-	},
-	inject: [Argon2Service],
-};
-
-@Global()
 @Module({
-	providers: [Argon2Service, passwordHashService],
-	exports: [passwordHashService],
+	providers: [
+		{
+			provide: PasswordHashingService,
+			useClass: Argon2Service,
+		},
+	],
+	exports: [PasswordHashingService],
 })
 export class PasswordHashingModule {}

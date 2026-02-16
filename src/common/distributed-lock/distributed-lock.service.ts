@@ -1,9 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { RedisService } from '../redis/redis.service';
-import { Lock } from './lock';
-import { DistributedLockConfig, distributedLockConfigRegistration } from 'src/config/distributed-lock.config';
+import { Injectable } from '@nestjs/common';
+import { Lock } from './lock/lock';
 import { v4 as uuidv4 } from 'uuid';
 import { setTimeout } from 'node:timers/promises';
+import { DistributedLockConfigService } from './distributed-lock-config.service';
+import { LockService } from './lock/lock.interface';
 
 export interface DistributedLockOptions {
 	/**
@@ -24,13 +24,13 @@ export interface DistributedLockOptions {
 @Injectable()
 export class DistributedLockService {
 	constructor(
-		private readonly redisService: RedisService,
-		@Inject(distributedLockConfigRegistration.KEY) private readonly distributedLockConfig: DistributedLockConfig,
+		private readonly lockService: LockService,
+		private readonly distributedLockConfigService: DistributedLockConfigService,
 	) {}
 
 	async acquire(key: string, options?: DistributedLockOptions): Promise<Lock> {
 		const lockValue = uuidv4();
-		const lockExpirationTimeInSeconds = options?.expirationTimeInSeconds ?? this.distributedLockConfig.expirationTimeInSeconds;
+		const lockExpirationTimeInSeconds = options?.expirationTimeInSeconds ?? this.distributedLockConfigService.expirationTimeInSeconds;
 		const timeoutInMs = options?.timeout;
 		const startTime = Date.now();
 
@@ -38,9 +38,9 @@ export class DistributedLockService {
 			if (timeoutInMs && Date.now() - startTime > timeoutInMs) {
 				throw new Error('Timeout: Failed to acquire lock');
 			}
-			const result = await this.redisService.set(key, lockValue, 'EX', lockExpirationTimeInSeconds, 'NX');
-			if (result === 'OK') {
-				return new Lock(this.redisService, key, lockValue, lockExpirationTimeInSeconds);
+			const sucess = await this.lockService.acquire(key, lockValue, lockExpirationTimeInSeconds);
+			if (sucess) {
+				return new Lock(this.lockService, key, lockValue, lockExpirationTimeInSeconds);
 			}
 			const jitter = Math.floor(Math.random() * 40);
 			await setTimeout(80 + jitter); // 80 - 120 ms

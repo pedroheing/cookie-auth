@@ -1,7 +1,7 @@
-import { PasswordHashingProvider } from '../password-hashing-provider.interface';
 import * as argon2 from 'argon2';
+import { PasswordHashingService } from '../password-hashing.interface';
 
-export class Argon2Service implements PasswordHashingProvider {
+export class Argon2Service implements PasswordHashingService {
 	hash(password: string): Promise<string> {
 		return argon2.hash(password);
 	}

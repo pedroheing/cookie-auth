@@ -1,27 +1,31 @@
 import { Test } from '@nestjs/testing';
-import { AuthConfig, authConfigRegistration } from 'src/config/auth.config';
 import { AutenticatedRequest, AuthGuard } from './auth.guard';
-import { AuthService } from 'src/features/auth/auth.service';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public-route.decorator';
 import { UnauthorizedException } from '@nestjs/common';
-import { Environment } from 'src/config/config-factory';
-import { mock, MockProxy } from 'jest-mock-extended';
+import { mock } from 'jest-mock-extended';
 import { Response } from 'express';
 import { ExecutionContext, HttpArgumentsHost } from '@nestjs/common/interfaces';
-
-const authConfig = new AuthConfig({
-	AUTH_SESSION_LIFESPAN_IN_DAYS: 10,
-	AUTH_CACHE_LIFESPAN_SECONDS: 30,
-	AUTH_SESSION_TOKEN_TTL_IN_HOURS: 24,
-	AUTH_SESSION_CACHE_TTL_AFTER_TOKEN_REFRESH_IN_SECONDS: 60,
-	AUTH_COOKIE_NAME: 'id',
-	NODE_ENV: Environment.Development,
-});
+import { AuthConfigService } from 'src/features/auth/config/auth-config.service';
+import { SessionService } from 'src/features/auth/session/session.service';
 
 describe('AuthGuard', () => {
 	let authGuard: AuthGuard;
-	const authService = mock<AuthService>();
+	const sessionService = mock<SessionService>();
+	const authConfigService = mock<AuthConfigService>({
+		sessionLifespanInDays: 10,
+		cacheLifespanInSeconds: 30,
+		sessionTokenTTLInHours: 24,
+		authSessionCacheTTLAterTokenRefreshInSeconds: 60,
+		authSessionTokenRefreshedCacheTTLInSeconds: 60,
+		cookie: {
+			name: 'id',
+			httpOnly: true,
+			maxAge: 10 * 24 * 60 * 60 * 1000, // 10 days
+			sameSite: 'lax',
+			secure: false,
+		},
+	});
 	const reflector = mock<Reflector>();
 	const request = mock<AutenticatedRequest>();
 	const response = mock<Response>();
@@ -32,8 +36,8 @@ describe('AuthGuard', () => {
 		const module = await Test.createTestingModule({
 			providers: [
 				AuthGuard,
-				{ provide: AuthService, useValue: authService },
-				{ provide: authConfigRegistration.KEY, useValue: authConfig },
+				{ provide: SessionService, useValue: sessionService },
+				{ provide: AuthConfigService, useValue: authConfigService },
 				{ provide: Reflector, useValue: reflector },
 			],
 		}).compile();
@@ -47,8 +51,8 @@ describe('AuthGuard', () => {
 
 	it('should be defined', () => {
 		expect(authGuard).toBeDefined();
-		expect(authService).toBeDefined();
-		expect(authConfigRegistration.KEY).toBeDefined();
+		expect(sessionService).toBeDefined();
+		expect(authConfigService).toBeDefined();
 		expect(reflector).toBeDefined();
 	});
 
@@ -58,16 +62,16 @@ describe('AuthGuard', () => {
 			const sessionToken = 'sessionToken';
 			const userId = 1;
 			request.cookies = {
-				[authConfig.cookie.name]: sessionToken,
+				[authConfigService.cookie.name]: sessionToken,
 			};
-			authService.validateSession.mockResolvedValue({ userId: userId });
+			sessionService.validateSession.mockResolvedValue({ userId: userId });
 
 			// Act
 			const result = await authGuard.canActivate(context);
 
 			// Assert
 			expect(result).toBe(true);
-			expect(authService.validateSession).toHaveBeenCalledWith(sessionToken);
+			expect(sessionService.validateSession).toHaveBeenCalledWith(sessionToken);
 			expect(request.user).toEqual({
 				userId: userId,
 				sessionToken: sessionToken,
@@ -82,7 +86,7 @@ describe('AuthGuard', () => {
 			// Assert
 			expect(result).toBe(true);
 			expect(reflector.getAllAndOverride).toHaveBeenCalledWith(IS_PUBLIC_KEY, [context.getHandler(), context.getClass()]);
-			expect(authService.validateSession).not.toHaveBeenCalled(); // it should not call the validation, the route is public
+			expect(sessionService.validateSession).not.toHaveBeenCalled(); // it should not call the validation, the route is public
 		});
 
 		it('should throw UnauthorizedException when the cookie is not found', async () => {
@@ -90,30 +94,30 @@ describe('AuthGuard', () => {
 			request.cookies = {};
 			// Act && Assert
 			await expect(authGuard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-			expect(authService.validateSession).not.toHaveBeenCalled();
+			expect(sessionService.validateSession).not.toHaveBeenCalled();
 		});
 
 		test.each([undefined, null, ''])("should throw UnauthorizedException when there is falsy value '%s' on the cookie", async (tokenValue) => {
 			// Arrange
 			request.cookies = {
-				[authConfig.cookie.name]: tokenValue,
+				[authConfigService.cookie.name]: tokenValue,
 			};
 			// Act && Assert
 			await expect(authGuard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-			expect(authService.validateSession).not.toHaveBeenCalled();
+			expect(sessionService.validateSession).not.toHaveBeenCalled();
 		});
 
 		it('should throw UnauthorizedException and clear the cookie when the session is invalid', async () => {
 			// Arrange
 			const sessionToken = 'token';
 			request.cookies = {
-				[authConfig.cookie.name]: sessionToken,
+				[authConfigService.cookie.name]: sessionToken,
 			};
-			authService.validateSession.mockResolvedValue(null);
+			sessionService.validateSession.mockResolvedValue(null);
 			// Act && Assert
 			await expect(authGuard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-			expect(authService.validateSession).toHaveBeenCalledWith(sessionToken);
-			expect(response.clearCookie).toHaveBeenCalledWith(authConfig.cookie.name);
+			expect(sessionService.validateSession).toHaveBeenCalledWith(sessionToken);
+			expect(response.clearCookie).toHaveBeenCalledWith(authConfigService.cookie.name);
 		});
 
 		it('should renew the token, set the user on the request and return true when the token is expired but the session is active', async () => {
@@ -122,17 +126,17 @@ describe('AuthGuard', () => {
 			const newSessionToken = 'newSessionToken';
 			const userId = 1;
 			request.cookies = {
-				[authConfig.cookie.name]: sessionToken,
+				[authConfigService.cookie.name]: sessionToken,
 			};
-			authService.validateSession.mockResolvedValue({ userId: userId, newSessionToken: newSessionToken });
+			sessionService.validateSession.mockResolvedValue({ userId: userId, newSessionToken: newSessionToken });
 
 			// Act
 			const result = await authGuard.canActivate(context);
 
 			// Assert
 			expect(result).toBe(true);
-			expect(authService.validateSession).toHaveBeenCalledWith(sessionToken);
-			expect(response.cookie).toHaveBeenCalledWith(authConfig.cookie.name, newSessionToken, authConfig.cookie);
+			expect(sessionService.validateSession).toHaveBeenCalledWith(sessionToken);
+			expect(response.cookie).toHaveBeenCalledWith(authConfigService.cookie.name, newSessionToken, authConfigService.cookie);
 			expect(request.user).toEqual({
 				userId: userId,
 				sessionToken: newSessionToken,
