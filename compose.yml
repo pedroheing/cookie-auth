@@ -30,22 +30,7 @@ services:
     volumes:
       - redisinsight_data:/data
 
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: pgadmin-cookie-auth
-    restart: always
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@email.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "8080:80"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      - postgres
-
 volumes:
   postgres_data:
   redis_data:
   redisinsight_data:
-  pgadmin_data:
