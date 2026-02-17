@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma, User } from '@prisma/client';
 import { PrismaService, PrismaTx } from 'src/common/prisma/prisma.service';
 
@@ -8,7 +8,7 @@ interface UserInput {
 	username: string;
 	hashedPassword: string;
 }
-
+@Injectable()
 export class UserService {
 	constructor(private readonly prismaService: PrismaService) {}
 
