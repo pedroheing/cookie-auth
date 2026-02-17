@@ -14,7 +14,8 @@ interface CreateSessionResult {
 }
 
 interface ValidateUserSessionResult {
-	userId: number;
+	isValid: boolean;
+	userId?: number;
 	/**Only has value if token was refreshed */
 	newSessionToken?: string;
 }
@@ -28,38 +29,41 @@ export class SessionService {
 		private readonly prismaService: PrismaService,
 	) {}
 
-	public async validateSession(sessionToken: string): Promise<ValidateUserSessionResult | null> {
+	public async validateAndRefreshSession(sessionToken: string): Promise<ValidateUserSessionResult> {
 		const tokenhash = this.createSessionTokenHash(sessionToken);
-		return this._validateSession(tokenhash);
+		return this._validateAndRefreshSession(tokenhash);
 	}
 
-	private async _validateSession(tokenHash: string): Promise<ValidateUserSessionResult | null> {
+	private async _validateAndRefreshSession(tokenHash: string): Promise<ValidateUserSessionResult> {
+		const invalidSessionResult: ValidateUserSessionResult = {
+			isValid: false,
+		};
 		const session = await this.getSessionFromCacheOrDatabase(tokenHash);
 		if (!session) {
-			return null;
+			return invalidSessionResult;
 		}
 		if (session.status !== SessionStatus.Active) {
-			return null;
+			return invalidSessionResult;
 		}
 		const hasSessionExpired = isAfter(new Date(), session.expires_at);
 		if (hasSessionExpired) {
-			return null;
+			return invalidSessionResult;
 		}
 		const hasTokenExpired = isBefore(session.last_token_issued_at, subHours(new Date(), this.authConfigService.sessionTokenTTLInHours));
 		if (hasTokenExpired) {
 			return this.renewToken(session, tokenHash);
 		}
-		return { userId: session.user_id };
+		return { isValid: true, userId: session.user_id };
 	}
 
-	private async renewToken(session: Session, oldSessionTokenhash: string): Promise<ValidateUserSessionResult | null> {
+	private async renewToken(session: Session, oldSessionTokenhash: string): Promise<ValidateUserSessionResult> {
 		const lockKey = `lock:session-refresh:${oldSessionTokenhash}`;
 		const lock = await this.distributedLockService.acquire(lockKey);
 		try {
 			const sessionTokenRefreshResultKey = `refreshed:session:${oldSessionTokenhash}`;
 			const newSessionTokenHash = await this.cacheService.get(sessionTokenRefreshResultKey);
 			if (newSessionTokenHash) {
-				return this._validateSession(newSessionTokenHash);
+				return this._validateAndRefreshSession(newSessionTokenHash);
 			}
 			const refreshResult = await this.refreshSessionToken(session.session_id);
 			await this.addSessionToCache(refreshResult.session);
@@ -74,7 +78,7 @@ export class SessionService {
 				this.createSessionTokenHash(refreshResult.sessionToken),
 				this.authConfigService.authSessionTokenRefreshedCacheTTLInSeconds,
 			);
-			return { userId: session.user_id, newSessionToken: refreshResult.sessionToken };
+			return { isValid: true, userId: session.user_id, newSessionToken: refreshResult.sessionToken };
 		} finally {
 			await lock.release();
 		}
@@ -83,7 +87,6 @@ export class SessionService {
 	private async getSessionFromCacheOrDatabase(tokenHash: string): Promise<Session | null> {
 		const cachedSession = await this.getSessionFromCache(tokenHash);
 		if (cachedSession) {
-			await this.cacheService.setExpiration(this.buildRedisSessionKey(tokenHash), this.authConfigService.cacheLifespanInSeconds);
 			return cachedSession;
 		}
 		const dbSession = await this.prismaService.session.findUnique({
