@@ -10,6 +10,7 @@
       "console": "integratedTerminal",
       "runtimeArgs": ["run-script", "start:dev"],
       "skipFiles": ["${workspaceFolder}/node_modules/**/*.js", "<node_internals>/**/*.js"],
+      "preLaunchTask": "docker-compose-up" 
     }
   ]
 }
