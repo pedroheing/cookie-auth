@@ -5,8 +5,8 @@ import { SignUpDto } from './dto/sign-up.dto';
 import { SignInDto } from './dto/sign-in.dto';
 import { mock } from 'jest-mock-extended';
 import { Response } from 'express';
-import { AutenticatedRequest } from 'src/core/guards/auth.guard';
 import { AuthConfigService } from './config/auth-config.service';
+import { AutenticatedRequest } from 'src/core/guards/auth/auth.guard';
 
 describe('AuthController', () => {
 	let authController: AuthController;
