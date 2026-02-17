@@ -19,7 +19,7 @@ export class AuthConfigService {
 
 	constructor(env: AuthEnv) {
 		this.sessionLifespanInDays = env.AUTH_SESSION_LIFESPAN_IN_DAYS ?? 30;
-		this.cacheLifespanInSeconds = env.AUTH_CACHE_LIFESPAN_SECONDS ?? 60 * 60 * 4; // 4 hours
+		this.cacheLifespanInSeconds = env.AUTH_CACHE_LIFESPAN_SECONDS ?? 60 * 30; // 30 min
 		this.sessionTokenTTLInHours = env.AUTH_SESSION_TOKEN_TTL_IN_HOURS ?? 24;
 		this.authSessionCacheTTLAterTokenRefreshInSeconds = env.AUTH_SESSION_CACHE_TTL_AFTER_TOKEN_REFRESH_IN_SECONDS ?? 60;
 		this.authSessionTokenRefreshedCacheTTLInSeconds = 60;

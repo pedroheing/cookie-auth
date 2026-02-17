@@ -9,7 +9,7 @@ const distributedLockConfigMock: DistributedLockOptions = {
 	expirationTimeInSeconds: 30,
 };
 
-jest.mock('./lock');
+jest.mock('./lock/lock');
 
 jest.mock('node:timers/promises', () => {
 	return {

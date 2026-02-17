@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request, Response } from 'express';
-import { IS_PUBLIC_KEY } from '../decorators/public-route.decorator';
+import { IS_PUBLIC_KEY } from '../../decorators/public-route.decorator';
 import { AuthConfigService } from 'src/features/auth/config/auth-config.service';
 import { SessionService } from 'src/features/auth/session/session.service';
 
@@ -31,14 +31,14 @@ export class AuthGuard implements CanActivate {
 		if (!sessionToken) {
 			throw new UnauthorizedException();
 		}
-		const validationResult = await this.sessionService.validateSession(sessionToken);
-		if (!validationResult) {
+		const validationResult = await this.sessionService.validateAndRefreshSession(sessionToken);
+		if (!validationResult.isValid) {
 			response.clearCookie(this.authConfigService.cookie.name);
 			throw new UnauthorizedException();
 		}
 		if (validationResult.newSessionToken) {
 			sessionToken = validationResult.newSessionToken;
-			response.cookie(this.authConfigService.cookie.name, validationResult.newSessionToken, this.authConfigService.cookie);
+			response.cookie(this.authConfigService.cookie.name, sessionToken, this.authConfigService.cookie);
 		}
 		request['user'] = {
 			userId: validationResult.userId,

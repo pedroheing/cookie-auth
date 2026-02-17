@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import { DistributedLockService } from 'src/common/distributed-lock/distributed-lock.service';
-import { Prisma, SessionStatus } from '@prisma/client';
+import { SessionStatus } from '@prisma/client';
 import { addDays, addHours, sub, subHours } from 'date-fns';
 import { mock, mockDeep } from 'jest-mock-extended';
 import { Lock } from 'src/common/distributed-lock/lock/lock';
@@ -71,10 +71,10 @@ describe('SessionService', () => {
 			jest.spyOn(sessionService as any, 'getSessionFromCacheOrDatabase').mockReturnValue(session);
 
 			// Act
-			const result = await sessionService.validateSession('session-token');
+			const result = await sessionService.validateAndRefreshSession('session-token');
 
 			// Assert
-			expect(result).toEqual({ userId: session.user_id });
+			expect(result).toEqual({ isValid: true, userId: session.user_id });
 		});
 
 		test.each([SessionStatus.Revoked, SessionStatus.Expired])('should return null for session with %s status', async (status) => {
@@ -85,24 +85,24 @@ describe('SessionService', () => {
 			jest.spyOn(sessionService as any, 'getSessionFromCacheOrDatabase').mockReturnValue(session);
 
 			// Act
-			const result = await sessionService.validateSession('session-token');
+			const result = await sessionService.validateAndRefreshSession('session-token');
 
 			// Assert
-			expect(result).toBe(null);
+			expect(result).toEqual({ isValid: false });
 		});
 
-		it('should return null for non-existent session', async () => {
+		it('should return invalid for non-existent session', async () => {
 			// Arrange
 			jest.spyOn(sessionService as any, 'getSessionFromCacheOrDatabase').mockReturnValue(null);
 
 			// Act
-			const result = await sessionService.validateSession('session-token');
+			const result = await sessionService.validateAndRefreshSession('session-token');
 
 			// Assert
-			expect(result).toBe(null);
+			expect(result).toEqual({ isValid: false });
 		});
 
-		it('should return null for active session with past expiration date', async () => {
+		it('should return invalid for active session with past expiration date', async () => {
 			// Arrange
 			const session = {
 				status: SessionStatus.Active,
@@ -113,10 +113,10 @@ describe('SessionService', () => {
 			jest.spyOn(sessionService as any, 'getSessionFromCacheOrDatabase').mockReturnValue(session);
 
 			// Act
-			const result = await sessionService.validateSession('session-token');
+			const result = await sessionService.validateAndRefreshSession('session-token');
 
 			// Assert
-			expect(result).toBe(null);
+			expect(result).toEqual({ isValid: false });
 		});
 
 		it('should refresh expired token and return new session token', async () => {
@@ -140,10 +140,10 @@ describe('SessionService', () => {
 			prismaService.session.update.mockResolvedValue(refreshedSession as any);
 
 			// Act
-			const result = await sessionService.validateSession('session-token');
+			const result = await sessionService.validateAndRefreshSession('session-token');
 
 			// Assert
-			expect(result).toEqual({ userId: session.user_id, newSessionToken: newSessionToken });
+			expect(result).toEqual({ isValid: true, userId: session.user_id, newSessionToken: newSessionToken });
 			expect(distributedLockService.acquire).toHaveBeenCalled(); // makes sure that it uses a concurrent lock
 			expect(lock.release).toHaveBeenCalled(); // IMPORTANT: makes sure that it releases the lock
 			expect(prismaService.session.update).toHaveBeenCalled(); // updates the session with new token and expiration dates
@@ -173,10 +173,10 @@ describe('SessionService', () => {
 			jest.spyOn(sessionService as any, 'getSessionFromCacheOrDatabase').mockReturnValueOnce(refreshedSession); // new Session
 
 			// Act
-			const result = await sessionService.validateSession('session-token');
+			const result = await sessionService.validateAndRefreshSession('session-token');
 
 			// Assert
-			expect(result).toEqual({ userId: session.user_id });
+			expect(result).toEqual({ isValid: true, userId: session.user_id });
 			expect(distributedLockService.acquire).toHaveBeenCalled(); // makes sure that it uses a concurrent lock
 			expect(lock.release).toHaveBeenCalled(); // IMPORTANT: makes sure that it releases the lock
 			expect(cacheService.get).toHaveBeenCalled(); // tries to find the result of the refresh, done by other call

@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { AutenticatedRequest, AuthGuard } from './auth.guard';
 import { Reflector } from '@nestjs/core';
-import { IS_PUBLIC_KEY } from '../decorators/public-route.decorator';
+import { IS_PUBLIC_KEY } from '../../decorators/public-route.decorator';
 import { UnauthorizedException } from '@nestjs/common';
 import { mock } from 'jest-mock-extended';
 import { Response } from 'express';
@@ -64,14 +64,14 @@ describe('AuthGuard', () => {
 			request.cookies = {
 				[authConfigService.cookie.name]: sessionToken,
 			};
-			sessionService.validateSession.mockResolvedValue({ userId: userId });
+			sessionService.validateAndRefreshSession.mockResolvedValue({ isValid: true, userId: userId });
 
 			// Act
 			const result = await authGuard.canActivate(context);
 
 			// Assert
 			expect(result).toBe(true);
-			expect(sessionService.validateSession).toHaveBeenCalledWith(sessionToken);
+			expect(sessionService.validateAndRefreshSession).toHaveBeenCalledWith(sessionToken);
 			expect(request.user).toEqual({
 				userId: userId,
 				sessionToken: sessionToken,
@@ -86,7 +86,7 @@ describe('AuthGuard', () => {
 			// Assert
 			expect(result).toBe(true);
 			expect(reflector.getAllAndOverride).toHaveBeenCalledWith(IS_PUBLIC_KEY, [context.getHandler(), context.getClass()]);
-			expect(sessionService.validateSession).not.toHaveBeenCalled(); // it should not call the validation, the route is public
+			expect(sessionService.validateAndRefreshSession).not.toHaveBeenCalled(); // it should not call the validation, the route is public
 		});
 
 		it('should throw UnauthorizedException when the cookie is not found', async () => {
@@ -94,7 +94,7 @@ describe('AuthGuard', () => {
 			request.cookies = {};
 			// Act && Assert
 			await expect(authGuard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-			expect(sessionService.validateSession).not.toHaveBeenCalled();
+			expect(sessionService.validateAndRefreshSession).not.toHaveBeenCalled();
 		});
 
 		test.each([undefined, null, ''])("should throw UnauthorizedException when there is falsy value '%s' on the cookie", async (tokenValue) => {
@@ -104,7 +104,7 @@ describe('AuthGuard', () => {
 			};
 			// Act && Assert
 			await expect(authGuard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-			expect(sessionService.validateSession).not.toHaveBeenCalled();
+			expect(sessionService.validateAndRefreshSession).not.toHaveBeenCalled();
 		});
 
 		it('should throw UnauthorizedException and clear the cookie when the session is invalid', async () => {
@@ -113,10 +113,10 @@ describe('AuthGuard', () => {
 			request.cookies = {
 				[authConfigService.cookie.name]: sessionToken,
 			};
-			sessionService.validateSession.mockResolvedValue(null);
+			sessionService.validateAndRefreshSession.mockResolvedValue({ isValid: false });
 			// Act && Assert
 			await expect(authGuard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-			expect(sessionService.validateSession).toHaveBeenCalledWith(sessionToken);
+			expect(sessionService.validateAndRefreshSession).toHaveBeenCalledWith(sessionToken);
 			expect(response.clearCookie).toHaveBeenCalledWith(authConfigService.cookie.name);
 		});
 
@@ -128,14 +128,14 @@ describe('AuthGuard', () => {
 			request.cookies = {
 				[authConfigService.cookie.name]: sessionToken,
 			};
-			sessionService.validateSession.mockResolvedValue({ userId: userId, newSessionToken: newSessionToken });
+			sessionService.validateAndRefreshSession.mockResolvedValue({ isValid: true, userId: userId, newSessionToken: newSessionToken });
 
 			// Act
 			const result = await authGuard.canActivate(context);
 
 			// Assert
 			expect(result).toBe(true);
-			expect(sessionService.validateSession).toHaveBeenCalledWith(sessionToken);
+			expect(sessionService.validateAndRefreshSession).toHaveBeenCalledWith(sessionToken);
 			expect(response.cookie).toHaveBeenCalledWith(authConfigService.cookie.name, newSessionToken, authConfigService.cookie);
 			expect(request.user).toEqual({
 				userId: userId,
