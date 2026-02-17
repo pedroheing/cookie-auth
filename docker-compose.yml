@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: cookie-auth
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d cookie-auth"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: root
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:8
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redisinsight:
+    image: redis/redisinsight
+    restart: always
+    ports:
+      - "5540:5540"
+
+  migration:
+    build:
+      context: .
+      target: build
+      dockerfile: ./docker/Dockerfile
+    command: /bin/sh -c "npm install @faker-js/faker && npx prisma migrate deploy && node dist/prisma/seed.js"
+    environment:
+      NODE_ENV: development
+      SEED_DEFAULT_USER_PASSWORD: 123456
+      DATABASE_URL: "postgresql://admin:password@postgres:5432/cookie-auth?schema=public"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  auth-server:
+    build:
+      context: .
+      target: production
+      dockerfile: ./docker/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: "postgresql://admin:password@postgres:5432/cookie-auth?schema=public"
+      REDIS_HOST: "redis"
+      REDIS_PORT: 6379
+      AUTH_SESSION_LIFESPAN_IN_DAYS: 30
+      AUTH_CACHE_LIFESPAN_SECONDS: 1800
+      AUTH_COOKIE_NAME": "id"
+      AUTH_SESSION_TOKEN_TTL_IN_HOURS: 24
+      AUTH_SESSION_CACHE_TTL_AFTER_TOKEN_REFRESH_IN_SECONDS: 60
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
