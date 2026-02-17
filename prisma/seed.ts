@@ -19,19 +19,20 @@ async function main() {
 
 async function seedFakeUsers() {
 	if (!process.env.SEED_DEFAULT_USER_PASSWORD) {
-		console.log(
-			'SEED_DEFAULT_USER_PASSWORD is not defined - ignoring seedFakeUsers',
-		);
+		console.log('SEED_DEFAULT_USER_PASSWORD is not defined - ignoring seedFakeUsers');
 		return;
 	}
-	const hashedPassword = await argon2.hash(
-		process.env.SEED_DEFAULT_USER_PASSWORD!,
-	);
+	const hashedPassword = await argon2.hash(process.env.SEED_DEFAULT_USER_PASSWORD!);
 	for (let i = 0; i < 10; i++) {
+		const firstName = faker.person.firstName();
+		const lastName = faker.person.lastName();
 		const user = {
-			first_name: faker.person.firstName(),
-			last_name: faker.person.lastName(),
-			username: faker.internet.username(),
+			first_name: firstName,
+			last_name: lastName,
+			username: faker.internet.username({
+				firstName: firstName,
+				lastName: lastName,
+			}),
 			password: hashedPassword,
 		} as User;
 		await prisma.user.upsert({
