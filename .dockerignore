@@ -2,3 +2,8 @@ node_modules
 docker/Dockerfile
 .dockerignore
 .env
+.git
+.gitignore
+.prittierrc
+coverage
+.vscode
