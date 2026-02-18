@@ -1,12 +1,11 @@
 services:
   postgres:
     image: postgres:17
-    container_name: postgres-cookie-auth
     restart: always
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: cookie-auth
+      POSTGRES_DB: distributed-session-api
     ports:
       - "5432:5432"
     volumes:
@@ -14,7 +13,6 @@ services:
 
   redis:
     image: redis:8
-    container_name: redis-cookie-auth
     restart: always
     ports:
       - "6379:6379"
@@ -23,7 +21,6 @@ services:
 
   redisinsight:
     image: redis/redisinsight
-    container_name: redis-insight-cookie-auth
     restart: always
     ports:
       - "5540:5540"
