@@ -42,9 +42,8 @@ services:
   migration:
     build:
       context: .
-      target: build
       dockerfile: ./docker/Dockerfile
-    command: /bin/sh -c "npm install @faker-js/faker && npx prisma migrate deploy && node dist/prisma/seed.js"
+    command: /bin/sh -c "npx prisma migrate deploy && node dist/prisma/seed.js"
     environment:
       NODE_ENV: development
       SEED_DEFAULT_USER_PASSWORD: 123456
@@ -56,12 +55,12 @@ services:
   auth-server:
     build:
       context: .
-      target: production
       dockerfile: ./docker/Dockerfile
     ports:
       - "3000:3000"
     environment:
       NODE_ENV: development
+      PORT: 3000
       DATABASE_URL: "postgresql://admin:password@postgres:5432/cookie-auth?schema=public"
       REDIS_HOST: "redis"
       REDIS_PORT: 6379
