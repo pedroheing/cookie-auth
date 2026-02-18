@@ -70,7 +70,7 @@ export class SessionService {
 			// allows older session to be valid for an extra time to finish concurrent calls
 			await this.cacheService.setExpiration(
 				this.buildRedisSessionKey(oldSessionTokenhash),
-				this.authConfigService.authSessionCacheTTLAterTokenRefreshInSeconds,
+				this.authConfigService.authSessionCacheTTLAfterTokenRefreshInSeconds,
 			);
 			// stores result of the token refresh for the next concurrent call on the queue
 			await this.cacheService.set(

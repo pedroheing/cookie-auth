@@ -17,7 +17,7 @@ describe('AuthController', () => {
 		sessionLifespanInDays: 10,
 		cacheLifespanInSeconds: 30,
 		sessionTokenTTLInHours: 24,
-		authSessionCacheTTLAterTokenRefreshInSeconds: 60,
+		authSessionCacheTTLAfterTokenRefreshInSeconds: 60,
 		authSessionTokenRefreshedCacheTTLInSeconds: 60,
 		cookie: {
 			name: 'id',

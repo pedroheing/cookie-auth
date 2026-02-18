@@ -7,7 +7,7 @@ export class AuthConfigService {
 	public readonly sessionLifespanInDays: number;
 	public readonly cacheLifespanInSeconds: number;
 	public readonly sessionTokenTTLInHours: number;
-	public readonly authSessionCacheTTLAterTokenRefreshInSeconds: number;
+	public readonly authSessionCacheTTLAfterTokenRefreshInSeconds: number;
 	public readonly authSessionTokenRefreshedCacheTTLInSeconds: number;
 	public readonly cookie: {
 		readonly name: string;
@@ -21,7 +21,7 @@ export class AuthConfigService {
 		this.sessionLifespanInDays = env.AUTH_SESSION_LIFESPAN_IN_DAYS ?? 30;
 		this.cacheLifespanInSeconds = env.AUTH_CACHE_LIFESPAN_SECONDS ?? 60 * 30; // 30 min
 		this.sessionTokenTTLInHours = env.AUTH_SESSION_TOKEN_TTL_IN_HOURS ?? 24;
-		this.authSessionCacheTTLAterTokenRefreshInSeconds = env.AUTH_SESSION_CACHE_TTL_AFTER_TOKEN_REFRESH_IN_SECONDS ?? 60;
+		this.authSessionCacheTTLAfterTokenRefreshInSeconds = env.AUTH_SESSION_CACHE_TTL_AFTER_TOKEN_REFRESH_IN_SECONDS ?? 60;
 		this.authSessionTokenRefreshedCacheTTLInSeconds = 60;
 		this.cookie = {
 			name: env.AUTH_COOKIE_NAME ?? 'id', // generic name as recomended by OWASP
