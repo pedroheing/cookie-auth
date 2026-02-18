@@ -1,8 +1,4 @@
-###############
-#### BUILD ####
-###############
-
-FROM node:22-slim AS build
+FROM node:22-slim
 
 # install openssl for Prisma
 RUN apt-get update -y && apt-get install -y openssl
@@ -32,30 +28,9 @@ COPY --chown=node:node . .
 # run the build command that creates the production package
 RUN npm run build
 
-# remove dev dependencies
-RUN npm prune --omit=dev
-
-####################
-#### PRODUCTION ####
-####################
-
-FROM node:22-slim AS production
-
-# install openssl for Prisma
-RUN apt-get update -y && apt-get install -y openssl && apt-get clean && rm -rf /var/lib/apt/lists/*
-
 # does the next steps as the 'node' user
 # node images have a non-root 'node' user by default
 USER node
-
-# creates the working directory
-WORKDIR /usr/src/app
-
-# copies the depdencies from build stage
-COPY --chown=node:node --from=build /usr/src/app/node_modules ./node_modules
-
-# copies the project dist files from the build stage
-COPY --chown=node:node --from=build /usr/src/app/dist ./dist
 
 # runs the project
 CMD [ "node", "dist/src/main.js" ]
