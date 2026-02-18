@@ -5,9 +5,9 @@ services:
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: distributed-session-api
+      POSTGRES_DB: auth-server
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d distributed-session-api"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d auth-server"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -47,12 +47,12 @@ services:
     environment:
       NODE_ENV: development
       SEED_DEFAULT_USER_PASSWORD: 123456
-      DATABASE_URL: "postgresql://admin:password@postgres:5432/distributed-session-api?schema=public"
+      DATABASE_URL: "postgresql://admin:password@postgres:5432/auth-server?schema=public"
     depends_on:
       postgres:
         condition: service_healthy
 
-  distributed-session-server:
+  auth-server:
     build:
       context: .
       dockerfile: ./docker/Dockerfile
@@ -61,7 +61,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3000
-      DATABASE_URL: "postgresql://admin:password@postgres:5432/distributed-session-api?schema=public"
+      DATABASE_URL: "postgresql://admin:password@postgres:5432/auth-server?schema=public"
       REDIS_HOST: "redis"
       REDIS_PORT: 6379
       AUTH_SESSION_LIFESPAN_IN_DAYS: 30
