@@ -273,5 +273,5 @@ Full API documentation is available via Swagger.
 To run the tests, use:
 
 ```bash
-    docker compose exec distributed-session-server npm run test
+    docker compose exec auth-server npm run test
 ```
