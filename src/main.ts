@@ -16,7 +16,7 @@ async function bootstrap() {
 	app.use(helmet());
 	app.setGlobalPrefix('/api/v1');
 
-	const config = new DocumentBuilder().setTitle('Cookie Auth API').setDescription('The Authentication API description').setVersion('1.0').build();
+	const config = new DocumentBuilder().setTitle('Auth server API').setVersion('1.0').build();
 	const documentFactory = () => SwaggerModule.createDocument(app, config);
 	SwaggerModule.setup('api/docs', app, documentFactory);
 
