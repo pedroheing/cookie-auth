@@ -216,7 +216,7 @@ sequenceDiagram
 Clone the repository:
 
 ```bash
-git clone https://github.com/pedroheing/cookie-auth.git && cd cookie-auth
+git clone https://github.com/pedroheing/distributed-session-api.git && cd distributed-session-api
 ```
 
 ### Configuration
@@ -252,7 +252,7 @@ The system will perform the following actions automatically:
 | **pgAdmin**       | `http://localhost:5050`          | User: `admin@admin.com` / Pass: `root`              |
 | **Postgres**      | `http://postgres:5432`           | User: `admin` / Pass: `password` (Host: `postgres`) |
 | **Redis Insight** | `http://localhost:5540`          | -                                                   |
-| **Redis**         | `http://redis:6379`              | redis://default@redis:6379                          |
+| **Redis**         | `http://redis:6379`              | `redis://default@redis:6379`                        |
 
 ## API Documentation
 
@@ -273,5 +273,5 @@ Full API documentation is available via Swagger.
 To run the tests, use:
 
 ```bash
-    docker compose exec auth-server npm run test
+    docker compose exec distributed-session-server npm run test
 ```
