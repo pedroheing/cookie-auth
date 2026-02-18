@@ -10,8 +10,8 @@ A scalable and secure authentication service built with **NestJS**. This project
 
 ## Table of Contents
 
-- [Architecture and Security Features](#architecture--security-features)
-    - [Login and Timing Attack Prevention](#login--timing-attack-prevention)
+- [Architecture and Security Features](#architecture-and-security-features)
+    - [Login and Timing Attack Prevention](#login-and-timing-attack-prevention)
     - [Session Validation Strategy](#session-validation-strategy)
     - [Token Rotation with Distributed Lock](#token-rotation-with-distributed-lock)
 - [Future Improvements](#future-improvements)
@@ -22,8 +22,6 @@ A scalable and secure authentication service built with **NestJS**. This project
     - [Configuration](#configuration)
     - [Execution](#execution)
 - [Access Points](#access-points)
-    - [Database Management](#database-management)
-    - [Redis Management](#redis-management)
 - [API Documentation](#api-documentation)
     - [Core Endpoints](#core-endpoints)
 - [Run Tests](#run-tests)
@@ -265,7 +263,7 @@ Full API documentation is available via Swagger.
 
 - `POST /auth/sign-up` - Register a new user.
 - `POST /auth/sign-in` - Authenticate and receive an HTTP-Only cookie.
-- `POST /auth/sign-out` - Revoke session (clears DB and cache).
+- `POST /auth/sign-out` - Revoke session.
 - `POST /auth/change-password` - Change current user password.
 
 ## Run Tests
@@ -273,5 +271,5 @@ Full API documentation is available via Swagger.
 To run the tests, use:
 
 ```bash
-    docker compose exec auth-server npm run test
+docker compose exec auth-server npm run test
 ```
