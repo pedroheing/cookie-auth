@@ -6,7 +6,7 @@
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=flat&logo=docker&logoColor=white)
 [![Prisma](https://img.shields.io/badge/Prisma-2D3748?logo=prisma&logoColor=white)](#)
 
-A scalable and secure authentication service built with **NestJS**. This project prioritizes data integrity and security by ensuring synchronization between persistent storage (**PostgreSQL**) and session cache (**Redis**). It utilizes **HTTP-Only Cookies** for session management and **Redis distributed locks** to address common distributed system pitfalls such as race conditions.
+A robust authentication API built with NestJS. It manages stateful sessions across distributed environments using PostgreSQL and Redis. The system utilizes HTTP-Only Cookies for secure client transport and relies on Redis distributed locks to ensure safe token rotation and eliminate concurrency issues.
 
 ## Table of Contents
 
