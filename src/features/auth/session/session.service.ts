@@ -30,11 +30,11 @@ export class SessionService {
 	) {}
 
 	public async validateAndRefreshSession(sessionToken: string): Promise<ValidateUserSessionResult> {
-		const tokenhash = this.createSessionTokenHash(sessionToken);
-		return this._validateAndRefreshSession(tokenhash);
+		const tokenHash = this.createSessionTokenHash(sessionToken);
+		return this.validateAndRefreshSessionByHash(tokenHash);
 	}
 
-	private async _validateAndRefreshSession(tokenHash: string): Promise<ValidateUserSessionResult> {
+	private async validateAndRefreshSessionByHash(tokenHash: string): Promise<ValidateUserSessionResult> {
 		const invalidSessionResult: ValidateUserSessionResult = {
 			isValid: false,
 		};
@@ -56,20 +56,20 @@ export class SessionService {
 		return { isValid: true, userId: session.user_id };
 	}
 
-	private async renewToken(session: Session, oldSessionTokenhash: string): Promise<ValidateUserSessionResult> {
-		const lockKey = `lock:session-refresh:${oldSessionTokenhash}`;
+	private async renewToken(session: Session, oldSessionTokenHash: string): Promise<ValidateUserSessionResult> {
+		const lockKey = `lock:session-refresh:${oldSessionTokenHash}`;
 		const lock = await this.distributedLockService.acquire(lockKey);
 		try {
-			const sessionTokenRefreshResultKey = `refreshed:session:${oldSessionTokenhash}`;
+			const sessionTokenRefreshResultKey = `refreshed:session:${oldSessionTokenHash}`;
 			const newSessionTokenHash = await this.cacheService.get(sessionTokenRefreshResultKey);
 			if (newSessionTokenHash) {
-				return this._validateAndRefreshSession(newSessionTokenHash);
+				return this.validateAndRefreshSessionByHash(newSessionTokenHash);
 			}
 			const refreshResult = await this.refreshSessionToken(session.session_id);
 			await this.addSessionToCache(refreshResult.session);
 			// allows older session to be valid for an extra time to finish concurrent calls
 			await this.cacheService.setExpiration(
-				this.buildRedisSessionKey(oldSessionTokenhash),
+				this.buildRedisSessionKey(oldSessionTokenHash),
 				this.authConfigService.authSessionCacheTTLAfterTokenRefreshInSeconds,
 			);
 			// stores result of the token refresh for the next concurrent call on the queue
@@ -100,8 +100,8 @@ export class SessionService {
 		return dbSession;
 	}
 
-	private async getSessionFromCache(tokenhash: string): Promise<Session | null> {
-		const sessionCache = await this.cacheService.get(this.buildRedisSessionKey(tokenhash));
+	private async getSessionFromCache(tokenHash: string): Promise<Session | null> {
+		const sessionCache = await this.cacheService.get(this.buildRedisSessionKey(tokenHash));
 		if (sessionCache) {
 			const session = JSON.parse(sessionCache);
 			return {
@@ -151,7 +151,7 @@ export class SessionService {
 		return { session, sessionToken };
 	}
 
-	public async revokeSession(sessionToken: string) {
+	public async revokeSession(sessionToken: string): Promise<void> {
 		const tokenHash = this.createSessionTokenHash(sessionToken);
 		await this.prismaService.session.updateMany({
 			where: {
@@ -165,7 +165,7 @@ export class SessionService {
 		await this.removeSessionFromCache(tokenHash);
 	}
 
-	public async revokeAllBut(userId: number, sessionTokenToKeep: string, tx?: PrismaTx) {
+	public async revokeAllBut(userId: number, sessionTokenToKeep: string, tx?: PrismaTx): Promise<void> {
 		const prismaService = tx ?? this.prismaService;
 		const openSessions = await prismaService.session.findMany({
 			where: {
@@ -181,7 +181,7 @@ export class SessionService {
 			},
 		});
 		if (openSessions.length === 0) {
-			return [];
+			return;
 		}
 		const ids: number[] = [];
 		const hashes: string[] = [];
@@ -215,10 +215,8 @@ export class SessionService {
 	}
 
 	private async removeSessionFromCache(tokenHash: string | string[]): Promise<void> {
-		if (!Array.isArray(tokenHash)) {
-			tokenHash = [tokenHash];
-		}
-		await this.cacheService.delete(tokenHash.map((t) => this.buildRedisSessionKey(t)));
+		const hashes = Array.isArray(tokenHash) ? tokenHash : [tokenHash];
+		await this.cacheService.delete(hashes.map((t) => this.buildRedisSessionKey(t)));
 	}
 
 	private buildRedisSessionKey(tokenHash: string) {
