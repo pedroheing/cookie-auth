@@ -1,9 +1,9 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request, Response } from 'express';
-import { IS_PUBLIC_KEY } from '../../decorators/public-route.decorator';
 import { AuthConfigService } from 'src/features/auth/config/auth-config.service';
 import { SessionService } from 'src/features/auth/session/session.service';
+import { IS_PUBLIC_KEY } from '../../decorators/public-route.decorator';
 
 export interface AutenticatedRequest extends Request {
 	user: {

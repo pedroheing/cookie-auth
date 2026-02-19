@@ -1,10 +1,10 @@
-import { Test } from '@nestjs/testing';
-import { mock } from 'jest-mock-extended';
+import { BadRequestException } from '@nestjs/common';
 import { ExecutionContext, HttpArgumentsHost } from '@nestjs/common/interfaces';
+import { Test } from '@nestjs/testing';
+import { Request } from 'express';
+import { mock } from 'jest-mock-extended';
 import { AuthConfigService } from 'src/features/auth/config/auth-config.service';
 import { GuestGuard } from './guest.guard';
-import { Request } from 'express';
-import { BadRequestException } from '@nestjs/common';
 
 describe('GuestGuard', () => {
 	let guestGuard: GuestGuard;

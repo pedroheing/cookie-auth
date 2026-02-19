@@ -1,8 +1,8 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import Redis from 'ioredis';
-import { RedisConfigService } from './redis-config.service';
 import { CacheService } from '../../cache/cache.interface';
 import { LockService } from '../../distributed-lock/lock/lock.interface';
+import { RedisConfigService } from './redis-config.service';
 
 declare module 'ioredis' {
 	interface Redis {

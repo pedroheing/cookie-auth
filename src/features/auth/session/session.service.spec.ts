@@ -1,12 +1,12 @@
 import { Test } from '@nestjs/testing';
-import { PrismaService } from 'src/common/prisma/prisma.service';
-import { DistributedLockService } from 'src/common/distributed-lock/distributed-lock.service';
 import { SessionStatus } from '@prisma/client';
 import { addDays, addHours, sub, subHours } from 'date-fns';
 import { mock, mockDeep } from 'jest-mock-extended';
-import { Lock } from 'src/common/distributed-lock/lock/lock';
-import { AuthConfigService } from '../config/auth-config.service';
 import { CacheService } from 'src/common/cache/cache.interface';
+import { DistributedLockService } from 'src/common/distributed-lock/distributed-lock.service';
+import { Lock } from 'src/common/distributed-lock/lock/lock';
+import { PrismaService } from 'src/common/prisma/prisma.service';
+import { AuthConfigService } from '../config/auth-config.service';
 import { SessionService } from './session.service';
 
 describe('SessionService', () => {

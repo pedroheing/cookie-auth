@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { Lock } from './lock/lock';
-import { v4 as uuidv4 } from 'uuid';
 import { setTimeout } from 'node:timers/promises';
+import { v4 as uuidv4 } from 'uuid';
 import { DistributedLockConfigService } from './distributed-lock-config.service';
+import { Lock } from './lock/lock';
 import { LockService } from './lock/lock.interface';
 
 export interface DistributedLockOptions {

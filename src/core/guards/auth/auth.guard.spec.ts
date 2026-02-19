@@ -1,13 +1,13 @@
-import { Test } from '@nestjs/testing';
-import { AutenticatedRequest, AuthGuard } from './auth.guard';
-import { Reflector } from '@nestjs/core';
-import { IS_PUBLIC_KEY } from '../../decorators/public-route.decorator';
 import { UnauthorizedException } from '@nestjs/common';
-import { mock } from 'jest-mock-extended';
-import { Response } from 'express';
 import { ExecutionContext, HttpArgumentsHost } from '@nestjs/common/interfaces';
+import { Reflector } from '@nestjs/core';
+import { Test } from '@nestjs/testing';
+import { Response } from 'express';
+import { mock } from 'jest-mock-extended';
 import { AuthConfigService } from 'src/features/auth/config/auth-config.service';
 import { SessionService } from 'src/features/auth/session/session.service';
+import { IS_PUBLIC_KEY } from '../../decorators/public-route.decorator';
+import { AutenticatedRequest, AuthGuard } from './auth.guard';
 
 describe('AuthGuard', () => {
 	let authGuard: AuthGuard;
