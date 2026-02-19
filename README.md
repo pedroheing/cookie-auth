@@ -14,6 +14,10 @@ A scalable and secure authentication service built with **NestJS**. This project
     - [Login and Timing Attack Prevention](#login-and-timing-attack-prevention)
     - [Session Validation Strategy](#session-validation-strategy)
     - [Token Rotation with Distributed Lock](#token-rotation-with-distributed-lock)
+- [Design Decisions and Trade-offs](#design-decisions-and-trade-offs)
+    - [Dual-Write Inside Transaction](#dual-write-inside-transaction)
+    - [Stateful Sessions vs. Stateless JWTs](#stateful-sessions-vs-stateless-jwts)
+    - [Distributed Locking vs. Database Locking](#distributed-locking-vs-database-locking)
 - [Future Improvements](#future-improvements)
 - [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
@@ -182,16 +186,39 @@ sequenceDiagram
 
 </details>
 
+## Design Decisions and Trade-offs
+
+### Dual-Write Inside Transaction
+
+**Decision:** Redis cache operations (write/invalidate) are performed within the database transaction scope.
+
+- **Rationale:** Deliberate choice to reduce architectural complexity. While the "Dual-Write Problem" is a known distributed systems challenge, addressing it via the Outbox Pattern would add significant infrastructure overhead.
+- **Trade-off:** Tight coupling between Database and Cache availability. It increases the database transaction duration by the Redis RTT. Additionally, it carries a risk of cache inconsistency: if the transaction rolls back (e.g., due to a timeout) after the Redis write succeeds, the cache will hold "dirty" data referencing non-existent records.
+
+### Stateful Sessions vs. Stateless JWTs
+
+**Decision:** The system uses opaque session IDs (random strings) stored in Redis, rather than JSON Web Tokens (JWTs).
+
+- **Rationale:** Security and control. Opaque tokens allow for immediate session revocation (e.g., when a user changes their password or an admin bans a user). JWTs are stateless and cannot be invalidated before their natural expiration without re-implementing a stateful blocklist.
+- **Trade-off:** Requires a network call to Redis for every authenticated request to validate the session, whereas JWTs can be validated locally by the CPU.
+
+### Distributed Locking vs. Database Locking
+
+**Decision:** Concurrency control for token rotation utilizes Redis Distributed Locks (`Redlock` concept) instead of PostgreSQL row-level locking (`SELECT ... FOR UPDATE`).
+
+- **Rationale:** Offloads concurrency management from the primary database. Redis is optimized for fast, atomic key operations, making it significantly more efficient for high-frequency locking mechanisms than a relational database.
+- **Trade-off:** Introduces a hard dependency on Redis stability for the token rotation feature, but preserves the primary database resources for complex queries.
+
 ## Future Improvements
 
 - **Transactional Outbox Pattern:**
-  Implement the Outbox Pattern to ensure eventual consistency between the database and the cache, preventing "zombie sessions" where a session might remain active in the cache after being revoked in the database due to a failed cache operation.
+  Refactor the current synchronous dual-write strategy to a Transactional Outbox pattern. This would decouple database transactions from Redis I/O, resolving the "Dual-Write Problem" at scale. By using an event-driven approach, the system would ensure eventual consistency and eliminate the risk of "zombie sessions" even under extreme load or partial infrastructure failure.
 
 - **Rate Limiting and Throttling:**
   Implement rate limiting and throttling to prevent brute-force attacks and abuse.
 
 - **Observability:**
-  Implement observability tools, like Sentry, DataDog or LGTM to monitor the application.
+  Implement observability tools like Sentry, DataDog or LGTM to monitor the application.
 
 ## Tech Stack
 

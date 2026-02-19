@@ -1,12 +1,12 @@
-import { Test } from '@nestjs/testing';
-import { AuthService } from './auth.service';
-import { PrismaService } from 'src/common/prisma/prisma.service';
-import { SignUpDto } from './dto/sign-up.dto';
 import { ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 import { mock, mockDeep } from 'jest-mock-extended';
 import { PasswordHashingService } from 'src/common/password-hashing/password-hashing.interface';
-import { SessionService } from './session/session.service';
+import { PrismaService } from 'src/common/prisma/prisma.service';
 import { UserService } from '../user/user.service';
+import { AuthService } from './auth.service';
+import { SignUpDto } from './dto/sign-up.dto';
+import { SessionService } from './session/session.service';
 
 describe('AuthService', () => {
 	let authService: AuthService;
@@ -70,7 +70,6 @@ describe('AuthService', () => {
 				username: dto.username,
 			});
 			expect(sessionService.create).toHaveBeenCalled();
-			expect(sessionService.addSessionToCache).toHaveBeenCalled();
 		});
 	});
 
@@ -86,7 +85,7 @@ describe('AuthService', () => {
 			// Arrange
 			const expectedToken = 'token';
 			const fakeSession = { session_id: 1, user_id: 1, token_hash: 'any-hash' };
-			prismaService.user.findUnique.mockResolvedValue(user as any);
+			userService.findByUsername.mockResolvedValue(user as any);
 			passwordHashService.verify.mockResolvedValue(true);
 			sessionService.create.mockResolvedValue({ sessionToken: expectedToken, session: fakeSession as any });
 
@@ -95,31 +94,35 @@ describe('AuthService', () => {
 
 			// Assert
 			expect(token).toBe(expectedToken);
+			expect(userService.findByUsername).toHaveBeenCalledWith(user.username);
 			expect(passwordHashService.verify).toHaveBeenCalledWith(user.password, password);
 			expect(sessionService.create).toHaveBeenCalledWith(user.user_id);
-			expect(sessionService.addSessionToCache).toHaveBeenCalledWith(fakeSession);
 		});
 
 		it('should throw UnauthorizedException when it does not find the user', async () => {
 			// Arrange
-			prismaService.user.findUnique.mockResolvedValue(null);
+			const username = 'username';
+			const password = 'password';
+			userService.findByUsername.mockResolvedValue(null);
 			passwordHashService.hash.mockResolvedValue('dummy-hashed-password');
 			// makes sure that it fails because it doesn't find a user, not because the password is wrong
 			passwordHashService.verify.mockResolvedValue(true);
 
 			// Act && Assert
-			await expect(authService.signIn('username', 'password')).rejects.toThrow(UnauthorizedException);
+			await expect(authService.signIn(username, password)).rejects.toThrow(UnauthorizedException);
+			expect(userService.findByUsername).toHaveBeenCalledWith(username);
 			// it should verify the password even if the user doesn't exist, to prevent timing attacks
 			expect(passwordHashService.verify).toHaveBeenCalled();
 		});
 
 		it('should throw UnauthorizedException when the password does not match', async () => {
 			// Arrange
-			prismaService.user.findUnique.mockResolvedValue(user as any);
+			userService.findByUsername.mockResolvedValue(user as any);
 			passwordHashService.verify.mockResolvedValue(false);
 
 			// Act && Assert
 			await expect(authService.signIn(user.username, password)).rejects.toThrow(UnauthorizedException);
+			expect(userService.findByUsername).toHaveBeenCalledWith(user.username);
 			expect(passwordHashService.verify).toHaveBeenCalledWith(user.password, password);
 		});
 	});
@@ -152,53 +155,39 @@ describe('AuthService', () => {
 
 		it('should change the user password and revoke other sessions from database and remove from the cache', async () => {
 			// Arrange
-			const mockSessions = [
-				{ session_id: 1, token_hash: 'hash1' },
-				{ session_id: 2, token_hash: 'hash2' },
-			];
-			const expectedHashes = mockSessions.map((s) => s.token_hash);
-
-			prismaService.user.findUnique.mockResolvedValue(userFromDb as any);
-			prismaService.session.findMany.mockResolvedValue(mockSessions as any);
+			userService.find.mockResolvedValue(userFromDb as any);
 			passwordHashService.verify.mockResolvedValue(true);
 			passwordHashService.hash.mockResolvedValue(hashNewPassword);
-			sessionService.revokeAllBut.mockResolvedValue(expectedHashes);
 
 			// Act
 			await authService.changePassword(changePasswordDto);
 
 			// Assert
-			expect(prismaService.user.findUnique).toHaveBeenCalled();
+			expect(userService.find).toHaveBeenCalledWith(changePasswordDto.userId);
 			expect(passwordHashService.verify).toHaveBeenCalledWith(userFromDb.password, changePasswordDto.currentPassword);
 			expect(passwordHashService.hash).toHaveBeenCalledWith(changePasswordDto.newPassword);
 			expect(prismaService.$transaction).toHaveBeenCalled();
-			expect(prismaService.user.update).toHaveBeenCalledWith({
-				where: {
-					user_id: userFromDb.user_id,
-				},
-				data: {
-					password: hashNewPassword,
-				},
-			});
+			expect(userService.updatePassword).toHaveBeenCalledWith(changePasswordDto.userId, hashNewPassword, prismaService);
 			expect(sessionService.revokeAllBut).toHaveBeenCalledWith(userFromDb.user_id, changePasswordDto.sessionToken, prismaService);
-			expect(sessionService.removeSessionFromCache).toHaveBeenCalledWith(expectedHashes);
 		});
 
 		it('should throw NotFoundException when the user is not found', async () => {
 			// Arrange
-			prismaService.user.findUnique.mockResolvedValue(null);
+			userService.find.mockResolvedValue(null);
 
 			// Act && Assert
 			await expect(authService.changePassword(changePasswordDto)).rejects.toThrow(NotFoundException);
+			expect(userService.find).toHaveBeenCalledWith(changePasswordDto.userId);
 		});
 
 		it('should throw ForbiddenException when passing the wrong password', async () => {
 			// Arrange
-			prismaService.user.findUnique.mockResolvedValue(userFromDb as any);
+			userService.find.mockResolvedValue(userFromDb as any);
 			passwordHashService.verify.mockResolvedValue(false);
 
 			// Act && Assert
 			await expect(authService.changePassword(changePasswordDto)).rejects.toThrow(ForbiddenException);
+			expect(userService.find).toHaveBeenCalledWith(changePasswordDto.userId);
 			expect(passwordHashService.verify).toHaveBeenCalledWith(userFromDb.password, changePasswordDto.currentPassword);
 		});
 	});
