@@ -14,6 +14,8 @@ interface ChangePasswordInput {
 
 @Injectable()
 export class AuthService {
+	private dummyPassword?: string;
+
 	constructor(
 		private readonly prismaService: PrismaService,
 		private readonly passwordHashService: PasswordHashingService,
@@ -24,30 +26,37 @@ export class AuthService {
 	public async signUp(dto: SignUpDto): Promise<string> {
 		const hashedPassword = await this.passwordHashService.hash(dto.password);
 		const result = await this.prismaService.$transaction(async (tx: PrismaTx) => {
-			const user = await this.userService.create({
-				firstName: dto.firstName,
-				lastName: dto.lastName,
-				hashedPassword: hashedPassword,
-				username: dto.username,
-			});
+			const user = await this.userService.create(
+				{
+					firstName: dto.firstName,
+					lastName: dto.lastName,
+					hashedPassword: hashedPassword,
+					username: dto.username,
+				},
+				tx,
+			);
 			return this.sessionService.create(user.user_id, tx);
 		});
 		return result.sessionToken;
 	}
 
-	public async signIn(username: string, password: string) {
+	public async signIn(username: string, password: string): Promise<string> {
 		const user = await this.userService.findByUsername(username);
-		// creates dummy password as default to prevent timing attacks
-		let userPassword = await this.passwordHashService.hash('a-very-long-and-very-secure-password');
-		if (user) {
-			userPassword = user.password;
-		}
+		// uses dummy password as default to prevent timing attacks
+		const userPassword = user?.password ?? (await this.getDummyPassword());
 		const isValid = await this.passwordHashService.verify(userPassword, password);
 		if (!isValid || !user) {
 			throw new UnauthorizedException('Incorrect username or password');
 		}
 		const result = await this.sessionService.create(user.user_id);
 		return result.sessionToken;
+	}
+
+	private async getDummyPassword(): Promise<string> {
+		if (!this.dummyPassword) {
+			this.dummyPassword = await this.passwordHashService.hash('a-very-long-and-very-secure-password');
+		}
+		return this.dummyPassword;
 	}
 
 	public async signOut(sessionToken: string): Promise<void> {

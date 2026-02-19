@@ -63,12 +63,15 @@ describe('AuthService', () => {
 			expect(token).toBe(expectedToken);
 			expect(passwordHashService.hash).toHaveBeenCalledWith(dto.password);
 			expect(prismaService.$transaction).toHaveBeenCalled();
-			expect(userService.create).toHaveBeenCalledWith({
-				firstName: dto.firstName,
-				lastName: dto.lastName,
-				hashedPassword: hashedPassword,
-				username: dto.username,
-			});
+			expect(userService.create).toHaveBeenCalledWith(
+				{
+					firstName: dto.firstName,
+					lastName: dto.lastName,
+					hashedPassword: hashedPassword,
+					username: dto.username,
+				},
+				prismaService,
+			);
 			expect(sessionService.create).toHaveBeenCalled();
 		});
 	});
