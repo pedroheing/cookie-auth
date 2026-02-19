@@ -1,9 +1,9 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import helmet from 'helmet';
-import * as cookieParser from 'cookie-parser';
+import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
 	const app = await NestFactory.create(AppModule);

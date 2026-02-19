@@ -1,14 +1,14 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { SignUpDto } from './dto/sign-up.dto';
+import { ApiResponse } from '@nestjs/swagger';
 import { Response } from 'express';
-import { AuthService } from './auth.service';
-import { SignInDto } from './dto/sign-in.dto';
 import { Public } from 'src/core/decorators/public-route.decorator';
 import { AutenticatedRequest } from 'src/core/guards/auth/auth.guard';
-import { ChangePasswordDto } from './dto/change-password.dto';
-import { AuthConfigService } from './config/auth-config.service';
-import { ApiResponse } from '@nestjs/swagger';
 import { GuestGuard } from 'src/core/guards/guest/guest.guard';
+import { AuthService } from './auth.service';
+import { AuthConfigService } from './config/auth-config.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { SignInDto } from './dto/sign-in.dto';
+import { SignUpDto } from './dto/sign-up.dto';
 
 @Controller('auth')
 export class AuthController {

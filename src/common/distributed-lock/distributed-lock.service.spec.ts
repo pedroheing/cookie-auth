@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DistributedLockOptions, DistributedLockService } from './distributed-lock.service';
-import { Lock } from './lock/lock';
 import { mock } from 'jest-mock-extended';
 import { DistributedLockConfigService } from './distributed-lock-config.service';
+import { DistributedLockOptions, DistributedLockService } from './distributed-lock.service';
+import { Lock } from './lock/lock';
 import { LockService } from './lock/lock.interface';
 
 const distributedLockConfigMock: DistributedLockOptions = {

@@ -1,12 +1,12 @@
 import { Test } from '@nestjs/testing';
+import { Response } from 'express';
+import { mock } from 'jest-mock-extended';
+import { AutenticatedRequest } from 'src/core/guards/auth/auth.guard';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { SignUpDto } from './dto/sign-up.dto';
-import { SignInDto } from './dto/sign-in.dto';
-import { mock } from 'jest-mock-extended';
-import { Response } from 'express';
 import { AuthConfigService } from './config/auth-config.service';
-import { AutenticatedRequest } from 'src/core/guards/auth/auth.guard';
+import { SignInDto } from './dto/sign-in.dto';
+import { SignUpDto } from './dto/sign-up.dto';
 
 describe('AuthController', () => {
 	let authController: AuthController;
