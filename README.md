@@ -61,8 +61,8 @@ sequenceDiagram
   autonumber
   participant Client
   participant API
-  participant DB
-  participant HashService (Argon2)
+  participant DB as PostgreSQL
+  participant HashService
   participant Redis
 
   Client->>API: POST /sign-in (username, password)
