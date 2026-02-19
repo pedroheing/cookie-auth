@@ -1,12 +1,12 @@
+import { Injectable } from '@nestjs/common';
 import { Session, SessionStatus } from '@prisma/client';
 import { addDays, isAfter, isBefore, subHours } from 'date-fns';
-import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'node:crypto';
-import { DistributedLockService } from 'src/common/distributed-lock/distributed-lock.service';
-import { AuthConfigService } from '../config/auth-config.service';
 import { CacheService } from 'src/common/cache/cache.interface';
+import { DistributedLockService } from 'src/common/distributed-lock/distributed-lock.service';
 import { PrismaService, PrismaTx } from 'src/common/prisma/prisma.service';
-import { Injectable } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
+import { AuthConfigService } from '../config/auth-config.service';
 
 interface CreateSessionResult {
 	session: Session;
@@ -147,6 +147,7 @@ export class SessionService {
 				user_id: userId,
 			},
 		});
+		await this.addSessionToCache(session);
 		return { session, sessionToken };
 	}
 
@@ -198,7 +199,7 @@ export class SessionService {
 				status: SessionStatus.Revoked,
 			},
 		});
-		return hashes;
+		await this.removeSessionFromCache(hashes);
 	}
 
 	private generateNewSessionToken() {
@@ -209,11 +210,11 @@ export class SessionService {
 		return addDays(issuedAt, this.authConfigService.sessionLifespanInDays);
 	}
 
-	public async addSessionToCache(session: Session): Promise<void> {
+	private async addSessionToCache(session: Session): Promise<void> {
 		await this.cacheService.set(this.buildRedisSessionKey(session.token_hash), JSON.stringify(session), this.authConfigService.cacheLifespanInSeconds);
 	}
 
-	public async removeSessionFromCache(tokenHash: string | string[]): Promise<void> {
+	private async removeSessionFromCache(tokenHash: string | string[]): Promise<void> {
 		if (!Array.isArray(tokenHash)) {
 			tokenHash = [tokenHash];
 		}
@@ -224,7 +225,7 @@ export class SessionService {
 		return `session:${tokenHash}`;
 	}
 
-	public createSessionTokenHash(sessionToken: string) {
+	private createSessionTokenHash(sessionToken: string) {
 		return crypto.createHash('sha256').update(sessionToken).digest('hex');
 	}
 }

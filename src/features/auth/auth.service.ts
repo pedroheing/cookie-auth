@@ -1,9 +1,9 @@
 import { ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { SignUpDto } from './dto/sign-up.dto';
-import { PrismaService, PrismaTx } from 'src/common/prisma/prisma.service';
 import { PasswordHashingService } from 'src/common/password-hashing/password-hashing.interface';
-import { SessionService } from './session/session.service';
+import { PrismaService, PrismaTx } from 'src/common/prisma/prisma.service';
 import { UserService } from '../user/user.service';
+import { SignUpDto } from './dto/sign-up.dto';
+import { SessionService } from './session/session.service';
 
 interface ChangePasswordInput {
 	userId: number;
@@ -32,21 +32,11 @@ export class AuthService {
 			});
 			return this.sessionService.create(user.user_id, tx);
 		});
-		await this.sessionService.addSessionToCache(result.session);
 		return result.sessionToken;
 	}
 
 	public async signIn(username: string, password: string) {
-		const user = await this.prismaService.user.findUnique({
-			where: {
-				username: username,
-			},
-			select: {
-				user_id: true,
-				username: true,
-				password: true,
-			},
-		});
+		const user = await this.userService.findByUsername(username);
 		// creates dummy password as default to prevent timing attacks
 		let userPassword = await this.passwordHashService.hash('a-very-long-and-very-secure-password');
 		if (user) {
@@ -57,7 +47,6 @@ export class AuthService {
 			throw new UnauthorizedException('Incorrect username or password');
 		}
 		const result = await this.sessionService.create(user.user_id);
-		await this.sessionService.addSessionToCache(result.session);
 		return result.sessionToken;
 	}
 
@@ -66,15 +55,7 @@ export class AuthService {
 	}
 
 	public async changePassword(input: ChangePasswordInput): Promise<void> {
-		const user = await this.prismaService.user.findUnique({
-			where: {
-				user_id: input.userId,
-			},
-			select: {
-				user_id: true,
-				password: true,
-			},
-		});
+		const user = await this.userService.find(input.userId);
 		if (!user) {
 			throw new NotFoundException('User not found');
 		}
@@ -83,19 +64,9 @@ export class AuthService {
 			throw new ForbiddenException('It was not possible to verify your current password');
 		}
 		const newPasswordHash = await this.passwordHashService.hash(input.newPassword);
-		const hashes = await this.prismaService.$transaction(async (tx: PrismaTx) => {
-			await tx.user.update({
-				where: {
-					user_id: user.user_id,
-				},
-				data: {
-					password: newPasswordHash,
-				},
-			});
-			return this.sessionService.revokeAllBut(user.user_id, input.sessionToken, tx);
+		await this.prismaService.$transaction(async (tx: PrismaTx) => {
+			await this.userService.updatePassword(input.userId, newPasswordHash, tx);
+			await this.sessionService.revokeAllBut(user.user_id, input.sessionToken, tx);
 		});
-		if (hashes.length > 0) {
-			await this.sessionService.removeSessionFromCache(hashes);
-		}
 	}
 }
