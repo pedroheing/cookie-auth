@@ -41,7 +41,7 @@ describe('GuestGuard', () => {
 	});
 
 	describe('canActivate', () => {
-		it('should return true when the call is made by a unautenticated user', async () => {
+		it('should return true when the call is made by a unautenticated user', () => {
 			// Arrange
 			request.cookies = {};
 
@@ -52,7 +52,7 @@ describe('GuestGuard', () => {
 			expect(result).toBe(true);
 		});
 
-		it('should throw BadRequestException  when the call is made by an autenticated user', async () => {
+		it('should throw BadRequestException when the call is made by an autenticated user', () => {
 			// Arrange
 			request.cookies = {
 				[authConfigService.cookie.name]: 'sessionToken',
