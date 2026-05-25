@@ -52,7 +52,7 @@ describe('SessionService', () => {
 	}
 
 	describe('create', () => {
-		it('should create a valid session', async () => {
+		it('should create session', async () => {
 			const user = await createUser();
 
 			const currentSession = await sessionService.create(user.user_id);
