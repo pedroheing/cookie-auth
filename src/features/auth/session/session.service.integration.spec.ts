@@ -126,14 +126,14 @@ describe('SessionService', () => {
 			]);
 
 			const winner = results.find((r) => r.newSessionToken);
-			const bystanders = results.filter((r) => !r.newSessionToken);
+			const losers = results.filter((r) => !r.newSessionToken);
 			expect(winner).toBeTruthy();
 			expect(winner?.isValid).toBe(true);
 			expect(winner?.userId).toBe(user.user_id);
 			expect(winner?.newSessionToken).not.toBe(currentSession.sessionToken);
-			expect(bystanders).toHaveLength(2);
-			for (const passenger of bystanders) {
-				expect(passenger).toEqual({ isValid: true, userId: user.user_id });
+			expect(losers).toHaveLength(2);
+			for (const loser of losers) {
+				expect(loser).toEqual({ isValid: true, userId: user.user_id });
 			}
 		});
 	});
