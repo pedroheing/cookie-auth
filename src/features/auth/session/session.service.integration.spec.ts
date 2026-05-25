@@ -168,5 +168,24 @@ describe('SessionService', () => {
 			expect(results[1]).toEqual({ isValid: false });
 			expect(results[2]).toEqual({ isValid: true, userId: user.user_id });
 		});
+
+		it('should only revoke sessions from the same user', async () => {
+			const userA = await createUser();
+			const userB = await createUser();
+			const firstSessionUserA = await sessionService.create(userA.user_id);
+			const currentSessionUserA = await sessionService.create(userA.user_id);
+			const sessionUserB = await sessionService.create(userB.user_id);
+
+			await sessionService.revokeOtherSessions(userA.user_id, currentSessionUserA.sessionToken);
+
+			const results = await Promise.all([
+				sessionService.validateAndRefreshSession(firstSessionUserA.sessionToken),
+				sessionService.validateAndRefreshSession(currentSessionUserA.sessionToken),
+				sessionService.validateAndRefreshSession(sessionUserB.sessionToken),
+			]);
+			expect(results[0]).toEqual({ isValid: false });
+			expect(results[1]).toEqual({ isValid: true, userId: userA.user_id });
+			expect(results[2]).toEqual({ isValid: true, userId: userB.user_id });
+		});
 	});
 });
