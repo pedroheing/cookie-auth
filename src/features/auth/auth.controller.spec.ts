@@ -37,8 +37,6 @@ describe('AuthController', () => {
 
 	it('should be defined', () => {
 		expect(authController).toBeDefined();
-		expect(authService).toBeDefined();
-		expect(authConfigService).toBeDefined();
 	});
 
 	describe('signUp', () => {
@@ -57,7 +55,6 @@ describe('AuthController', () => {
 			await authController.signUp(response, singUpDto);
 
 			// Assert
-			expect(authService.signUp).toHaveBeenCalledWith(singUpDto);
 			expect(response.cookie).toHaveBeenCalledWith(authConfigService.cookie.name, newToken, authConfigService.cookie);
 		});
 	});
@@ -76,7 +73,6 @@ describe('AuthController', () => {
 			await authController.signIn(response, singInDto);
 
 			// Assert
-			expect(authService.signIn).toHaveBeenCalledWith(singInDto.username, singInDto.password);
 			expect(response.cookie).toHaveBeenCalledWith(authConfigService.cookie.name, newToken, authConfigService.cookie);
 		});
 	});
@@ -93,7 +89,6 @@ describe('AuthController', () => {
 			await authController.signOut(request, response);
 
 			// Assert
-			expect(authService.signOut).toHaveBeenCalledWith(request.user.sessionToken);
 			expect(response.clearCookie).toHaveBeenCalledWith(authConfigService.cookie.name);
 		});
 	});

@@ -11,6 +11,20 @@
 			"runtimeArgs": ["run-script", "start:dev"],
 			"skipFiles": ["${workspaceFolder}/node_modules/**/*.js", "<node_internals>/**/*.js"],
 			"preLaunchTask": "docker-compose-up"
+		},
+		{
+			"type": "node",
+			"name": "vscode-jest-tests",
+			"request": "launch",
+			"args": [
+				"--config",
+				"test/jest-vscode.json",
+				"--runInBand"
+			],
+			"cwd": "${workspaceFolder}",
+			"console": "integratedTerminal",
+			"internalConsoleOptions": "neverOpen",
+			"program": "${workspaceFolder}/node_modules/jest/bin/jest"
 		}
 	]
 }

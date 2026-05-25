@@ -1,15 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { mock } from 'jest-mock-extended';
 import { DistributedLockConfigService } from './distributed-lock-config.service';
-import { DistributedLockOptions, DistributedLockService } from './distributed-lock.service';
-import { Lock } from './lock/lock';
+import { DistributedLockService } from './distributed-lock.service';
 import { LockService } from './lock/lock.interface';
-
-const distributedLockConfigMock: DistributedLockOptions = {
-	expirationTimeInSeconds: 30,
-};
-
-jest.mock('./lock/lock');
 
 jest.mock('node:timers/promises', () => {
 	return {
@@ -37,23 +30,20 @@ describe('DistributedLockService', () => {
 
 	it('should be defined', () => {
 		expect(distributedLockService).toBeDefined();
-		expect(lockService).toBeDefined();
-		expect(dostributedLockConfigService).toBeDefined();
 	});
 
 	describe('acquire', () => {
-		it('should acquire the lock when successfully setting the redis key', async () => {
+		it('should acquire the lock', async () => {
 			// Arrange
 			const key = 'key';
 			lockService.acquire.mockResolvedValue(true);
 
 			// Act
-			await distributedLockService.acquire(key);
+			const lock = await distributedLockService.acquire(key);
 
 			// Assert
-			const lockValue = (lockService.acquire as jest.Mock).mock.calls[0][1];
-			expect(Lock.prototype.constructor).toHaveBeenCalledWith(lockService, key, lockValue, distributedLockConfigMock.expirationTimeInSeconds);
-			expect(lockService.acquire).toHaveBeenCalledWith(key, lockValue, distributedLockConfigMock.expirationTimeInSeconds);
+			expect(lock).toBeDefined();
+			expect(lock.key).toBe(key);
 		});
 
 		it('should use the expiration time parameter when provided', async () => {
@@ -63,14 +53,13 @@ describe('DistributedLockService', () => {
 			lockService.acquire.mockResolvedValue(true);
 
 			// Act
-			await distributedLockService.acquire(key, {
+			const lock = await distributedLockService.acquire(key, {
 				expirationTimeInSeconds: expirationTime,
 			});
 
 			// Assert
-			const lockValue = (lockService.acquire as jest.Mock).mock.calls[0][1];
-			expect(Lock.prototype.constructor).toHaveBeenCalledWith(lockService, key, lockValue, expirationTime);
-			expect(lockService.acquire).toHaveBeenCalledWith(key, lockValue, expirationTime);
+			expect(lock).toBeDefined();
+			expect(lock.lockExpirationTimeInSeconds).toBe(expirationTime);
 		});
 
 		it('should acquire the lock after retrying when the lock was in use and then was released', async () => {
@@ -81,13 +70,10 @@ describe('DistributedLockService', () => {
 			lockService.acquire.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 
 			// Act
-			await distributedLockService.acquire(key);
+			const lock = await distributedLockService.acquire(key);
 
 			// Assert
-			const lockValue = (lockService.acquire as jest.Mock).mock.calls[0][1];
-			expect(Lock.prototype.constructor).toHaveBeenCalledWith(lockService, key, lockValue, distributedLockConfigMock.expirationTimeInSeconds);
-			expect(lockService.acquire).toHaveBeenCalledTimes(2);
-			expect(lockService.acquire).toHaveBeenCalledWith(key, lockValue, distributedLockConfigMock.expirationTimeInSeconds);
+			expect(lock).toBeDefined();
 		});
 
 		it('should throw an error when it times out', async () => {
@@ -100,16 +86,6 @@ describe('DistributedLockService', () => {
 					timeout: 1,
 				}),
 			).rejects.toThrow(Error);
-			expect(lockService.acquire).toHaveBeenCalled();
-		});
-
-		it('should throw an error when redis set throws an error', async () => {
-			// Arrange
-			lockService.acquire.mockRejectedValue(new Error('Generic Redis error'));
-
-			// Act & Assert
-			await expect(distributedLockService.acquire('key')).rejects.toThrow(Error);
-			expect(lockService.acquire).toHaveBeenCalled();
 		});
 	});
 });

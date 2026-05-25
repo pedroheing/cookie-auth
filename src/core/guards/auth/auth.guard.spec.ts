@@ -51,9 +51,6 @@ describe('AuthGuard', () => {
 
 	it('should be defined', () => {
 		expect(authGuard).toBeDefined();
-		expect(sessionService).toBeDefined();
-		expect(authConfigService).toBeDefined();
-		expect(reflector).toBeDefined();
 	});
 
 	describe('canActivate', () => {
@@ -115,7 +112,7 @@ describe('AuthGuard', () => {
 			expect(response.clearCookie).toHaveBeenCalledWith(authConfigService.cookie.name);
 		});
 
-		it('should renew the token and return true when the token is expired but the session is active', async () => {
+		it('should return true and set the new token when the session is refreshed', async () => {
 			// Arrange
 			const sessionToken = 'sessionToken';
 			const newSessionToken = 'newSessionToken';
