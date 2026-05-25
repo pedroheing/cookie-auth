@@ -14,7 +14,7 @@ describe('AuthService', () => {
 	let sessionService: SessionService;
 	let userService: UserService;
 
-	beforeEach(async () => {
+	beforeAll(async () => {
 		const module = await Test.createTestingModule({
 			imports: [AuthModule],
 		}).compile();
@@ -112,7 +112,7 @@ describe('AuthService', () => {
 			username: 'test123',
 		};
 
-		it('should change the user password and revoke other sessions', async () => {
+		it('should revoke other sessions', async () => {
 			const tokenFirstSession = await authService.signUp(dto);
 			const tokenSecondSession = await authService.signIn(dto.username, dto.password);
 			const tokenThirdSession = await authService.signIn(dto.username, dto.password);
@@ -135,13 +135,44 @@ describe('AuthService', () => {
 			expect(results[2]).toEqual({ isValid: false });
 		});
 
+		it('should prevent signing in with the old password', async () => {
+			const token = await authService.signUp(dto);
+			const user = await userService.findByUsername(dto.username);
+
+			await authService.changePassword({
+				currentPassword: dto.password,
+				newPassword: 'new-password',
+				sessionToken: token,
+				userId: user!.user_id,
+			});
+
+			await expect(authService.signIn(dto.username, dto.password)).rejects.toThrow(UnauthorizedException);
+		});
+
+		it('should allow signing in with the new password', async () => {
+			const token = await authService.signUp(dto);
+			const user = await userService.findByUsername(dto.username);
+			const newPassword = 'new-password';
+
+			await authService.changePassword({
+				currentPassword: dto.password,
+				newPassword: newPassword,
+				sessionToken: token,
+				userId: user!.user_id,
+			});
+
+			const newToken = await authService.signIn(dto.username, newPassword);
+			expect(newToken).toBeTruthy();
+		});
+
 		it('should throw NotFoundException when the user is not found', async () => {
+			const nonExistentUserId = 99999;
 			await expect(
 				authService.changePassword({
 					currentPassword: 'test1',
 					newPassword: 'test2',
 					sessionToken: 'abc',
-					userId: 1,
+					userId: nonExistentUserId,
 				}),
 			).rejects.toThrow(NotFoundException);
 		});
