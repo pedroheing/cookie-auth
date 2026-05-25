@@ -43,7 +43,10 @@ export class AuthService {
 	public async signIn(username: string, password: string): Promise<string> {
 		const user = await this.userService.findByUsername(username);
 		// uses dummy password as default to prevent timing attacks
-		const userPassword = user?.password ?? (await this.getDummyPassword());
+		let userPassword = await this.getDummyPassword();
+		if (user) {
+			userPassword = user.password;
+		}
 		const isValid = await this.passwordHashService.verify(userPassword, password);
 		if (!isValid || !user) {
 			throw new UnauthorizedException('Incorrect username or password');
@@ -74,8 +77,8 @@ export class AuthService {
 		}
 		const newPasswordHash = await this.passwordHashService.hash(input.newPassword);
 		await this.prismaService.$transaction(async (tx: PrismaTx) => {
-			await this.userService.updatePassword(input.userId, newPasswordHash, tx);
-			await this.sessionService.revokeAllBut(user.user_id, input.sessionToken, tx);
+			await this.userService.changePassword(input.userId, newPasswordHash, tx);
+			await this.sessionService.revokeOtherSessions(user.user_id, input.sessionToken, tx);
 		});
 	}
 }
