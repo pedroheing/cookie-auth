@@ -55,6 +55,18 @@ export class RedisService implements OnModuleInit, OnModuleDestroy, CacheService
 		});
 	}
 
+	async ttl(key: string) {
+		return this.client.ttl(key);
+	}
+
+	async exists(key: string) {
+		return this.client.exists(key);
+	}
+
+	async del(key: string) {
+		return this.client.del(key);
+	}
+
 	async acquire(key: string, value: string, ttlSeconds: number): Promise<boolean> {
 		const result = await this.client.set(key, value, 'EX', ttlSeconds, 'NX');
 		return result === 'OK';

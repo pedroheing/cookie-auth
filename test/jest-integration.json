@@ -7,7 +7,8 @@
 		"^.+\\.(t|j)s$": ["@swc/jest"]
 	},
 	"moduleNameMapper": {
-		"src/(.*)": "<rootDir>/src/$1"
+		"src/(.*)": "<rootDir>/src/$1",
+		"test/(.*)": "<rootDir>/test/$1"
 	},
 	"moduleDirectories": ["node_modules", "src"],
 	"globalSetup": "<rootDir>/test/global-setup.ts",
