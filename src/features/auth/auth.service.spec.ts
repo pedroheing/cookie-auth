@@ -31,10 +31,6 @@ describe('AuthService', () => {
 
 	it('should be defined', () => {
 		expect(authService).toBeDefined();
-		expect(prismaService).toBeDefined();
-		expect(passwordHashService).toBeDefined();
-		expect(sessionService).toBeDefined();
-		expect(userService).toBeDefined();
 	});
 
 	describe('signUp', () => {
@@ -170,8 +166,8 @@ describe('AuthService', () => {
 			expect(passwordHashService.verify).toHaveBeenCalledWith(userFromDb.password, changePasswordDto.currentPassword);
 			expect(passwordHashService.hash).toHaveBeenCalledWith(changePasswordDto.newPassword);
 			expect(prismaService.$transaction).toHaveBeenCalled();
-			expect(userService.updatePassword).toHaveBeenCalledWith(changePasswordDto.userId, hashNewPassword, prismaService);
-			expect(sessionService.revokeAllBut).toHaveBeenCalledWith(userFromDb.user_id, changePasswordDto.sessionToken, prismaService);
+			expect(userService.changePassword).toHaveBeenCalledWith(changePasswordDto.userId, hashNewPassword, prismaService);
+			expect(sessionService.revokeOtherSessions).toHaveBeenCalledWith(userFromDb.user_id, changePasswordDto.sessionToken, prismaService);
 		});
 
 		it('should throw NotFoundException when the user is not found', async () => {
