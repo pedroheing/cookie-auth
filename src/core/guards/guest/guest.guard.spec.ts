@@ -1,26 +1,19 @@
 import { BadRequestException } from '@nestjs/common';
-import { ExecutionContext, INestApplication } from '@nestjs/common/interfaces';
-import { Test, TestingModule } from '@nestjs/testing';
-import { createEnvProvider } from 'src/common/config/config-factory';
+import { ExecutionContext } from '@nestjs/common/interfaces';
+import { Environment } from 'src/common/config/config-factory';
 import { AuthConfigService } from 'src/features/auth/config/auth-config.service';
-import { AuthEnv } from 'src/features/auth/config/auth.env';
 import { GuestGuard } from './guest.guard';
 
 describe('GuestGuard', () => {
-	let app: INestApplication;
-	let guard: GuestGuard;
-	let authConfigService: AuthConfigService;
-
-	beforeAll(async () => {
-		const module: TestingModule = await Test.createTestingModule({
-			providers: [GuestGuard, AuthConfigService, createEnvProvider(AuthEnv)],
-		}).compile();
-
-		app = module.createNestApplication();
-		guard = module.get(GuestGuard);
-		authConfigService = module.get(AuthConfigService);
-		await app.init();
+	const authConfigService = new AuthConfigService({
+		NODE_ENV: Environment.Development,
+		AUTH_CACHE_LIFESPAN_SECONDS: 10,
+		AUTH_COOKIE_NAME: 'test',
+		AUTH_SESSION_CACHE_TTL_AFTER_TOKEN_REFRESH_IN_SECONDS: 10,
+		AUTH_SESSION_LIFESPAN_IN_DAYS: 10,
+		AUTH_SESSION_TOKEN_TTL_IN_HOURS: 10,
 	});
+	const guard = new GuestGuard(authConfigService);
 
 	function contextWithCookies(cookies: Record<string, string>): ExecutionContext {
 		return {
@@ -33,7 +26,7 @@ describe('GuestGuard', () => {
 	});
 
 	it('should throw BadRequestException when session cookie is present', () => {
-		expect(() => guard.canActivate(contextWithCookies({ [authConfigService.cookie.name]: 'whatever' }))).toThrow(BadRequestException);
+		expect(() => guard.canActivate(contextWithCookies({ [authConfigService.cookie.name]: 'value' }))).toThrow(BadRequestException);
 	});
 
 	it('should ignore cookies with other names', () => {
