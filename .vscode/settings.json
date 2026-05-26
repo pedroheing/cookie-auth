@@ -1,0 +1,4 @@
+{
+  "jest.jestCommandLine": "npx jest --config test/jest-vscode.json",
+  "jest.runMode": "on-demand"
+}

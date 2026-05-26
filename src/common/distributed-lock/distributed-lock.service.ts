@@ -38,8 +38,8 @@ export class DistributedLockService {
 			if (timeoutInMs && Date.now() - startTime > timeoutInMs) {
 				throw new Error('Timeout: Failed to acquire lock');
 			}
-			const sucess = await this.lockService.acquire(key, lockValue, lockExpirationTimeInSeconds);
-			if (sucess) {
+			const success = await this.lockService.acquire(key, lockValue, lockExpirationTimeInSeconds);
+			if (success) {
 				return new Lock(this.lockService, key, lockValue, lockExpirationTimeInSeconds);
 			}
 			const jitter = Math.floor(Math.random() * 40);

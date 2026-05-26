@@ -1,67 +1,35 @@
 import { BadRequestException } from '@nestjs/common';
-import { ExecutionContext, HttpArgumentsHost } from '@nestjs/common/interfaces';
-import { Test } from '@nestjs/testing';
-import { Request } from 'express';
-import { mock } from 'jest-mock-extended';
+import { ExecutionContext } from '@nestjs/common/interfaces';
+import { Environment } from 'src/common/config/config-factory';
 import { AuthConfigService } from 'src/features/auth/config/auth-config.service';
 import { GuestGuard } from './guest.guard';
 
 describe('GuestGuard', () => {
-	let guestGuard: GuestGuard;
-	const authConfigService = mock<AuthConfigService>({
-		sessionLifespanInDays: 10,
-		cacheLifespanInSeconds: 30,
-		sessionTokenTTLInHours: 24,
-		authSessionCacheTTLAfterTokenRefreshInSeconds: 60,
-		authSessionTokenRefreshedCacheTTLInSeconds: 60,
-		cookie: {
-			name: 'id',
-			httpOnly: true,
-			maxAge: 10 * 24 * 60 * 60 * 1000, // 10 days
-			sameSite: 'lax',
-			secure: false,
-		},
+	const authConfigService = new AuthConfigService({
+		NODE_ENV: Environment.Development,
+		AUTH_CACHE_LIFESPAN_SECONDS: 10,
+		AUTH_COOKIE_NAME: 'test',
+		AUTH_SESSION_CACHE_TTL_AFTER_TOKEN_REFRESH_IN_SECONDS: 10,
+		AUTH_SESSION_LIFESPAN_IN_DAYS: 10,
+		AUTH_SESSION_TOKEN_TTL_IN_HOURS: 10,
 	});
-	const request = mock<Request>();
-	const httpArgumentsHost = mock<HttpArgumentsHost>();
-	const context = mock<ExecutionContext>();
+	const guard = new GuestGuard(authConfigService);
 
-	beforeEach(async () => {
-		const module = await Test.createTestingModule({
-			providers: [GuestGuard, { provide: AuthConfigService, useValue: authConfigService }],
-		}).compile();
-		httpArgumentsHost.getRequest.mockReturnValue(request);
-		context.switchToHttp.mockReturnValue(httpArgumentsHost);
-		guestGuard = module.get(GuestGuard);
+	function contextWithCookies(cookies: Record<string, string>): ExecutionContext {
+		return {
+			switchToHttp: () => ({ getRequest: () => ({ cookies }) }),
+		} as ExecutionContext;
+	}
+
+	it('should allow when no session cookie is present', () => {
+		expect(guard.canActivate(contextWithCookies({}))).toBe(true);
 	});
 
-	it('should be defined', () => {
-		expect(guestGuard).toBeDefined();
-		expect(authConfigService).toBeDefined();
+	it('should throw BadRequestException when session cookie is present', () => {
+		expect(() => guard.canActivate(contextWithCookies({ [authConfigService.cookie.name]: 'value' }))).toThrow(BadRequestException);
 	});
 
-	describe('canActivate', () => {
-		it('should return true when the call is made by a unautenticated user', async () => {
-			// Arrange
-			request.cookies = {};
-
-			// Act
-			const result = guestGuard.canActivate(context);
-
-			// Assert
-			expect(result).toBe(true);
-		});
-
-		it('should throw BadRequestException  when the call is made by an autenticated user', async () => {
-			// Arrange
-			request.cookies = {
-				[authConfigService.cookie.name]: 'sessionToken',
-			};
-
-			// Act && Assert
-			expect(() => {
-				guestGuard.canActivate(context);
-			}).toThrow(BadRequestException);
-		});
+	it('should ignore cookies with other names', () => {
+		expect(guard.canActivate(contextWithCookies({ other: 'value' }))).toBe(true);
 	});
 });

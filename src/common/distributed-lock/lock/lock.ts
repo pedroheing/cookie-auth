@@ -6,9 +6,9 @@ export class Lock extends EventEmitter {
 
 	constructor(
 		private readonly lockService: LockService,
-		private readonly key: string,
+		public readonly key: string,
 		private readonly value: string,
-		private readonly lockExpirationTimeInSeconds: number,
+		public readonly lockExpirationTimeInSeconds: number,
 	) {
 		super();
 		this.startAutoRenew();
@@ -38,12 +38,12 @@ export class Lock extends EventEmitter {
 			if (!sucess) {
 				this.handleLockLost(new Error(`Lock on key "${this.key}" was lost during renewal.`));
 			}
-		} catch (error: any) {
+		} catch (error) {
 			this.handleLockLost(error);
 		}
 	}
 
-	private handleLockLost(error: Error) {
+	private handleLockLost(error) {
 		this.stopAutoRenew();
 		this.emit('lost', error);
 	}

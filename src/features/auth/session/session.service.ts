@@ -165,13 +165,13 @@ export class SessionService {
 		await this.removeSessionFromCache(tokenHash);
 	}
 
-	public async revokeAllBut(userId: number, sessionTokenToKeep: string, tx?: PrismaTx): Promise<void> {
+	public async revokeOtherSessions(userId: number, currentSessionToken: string, tx?: PrismaTx): Promise<void> {
 		const prismaService = tx ?? this.prismaService;
 		const openSessions = await prismaService.session.findMany({
 			where: {
 				user_id: userId,
 				NOT: {
-					token_hash: this.createSessionTokenHash(sessionTokenToKeep),
+					token_hash: this.createSessionTokenHash(currentSessionToken),
 				},
 				status: SessionStatus.Active,
 			},
