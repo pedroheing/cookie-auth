@@ -298,6 +298,8 @@ Full API documentation is available via Swagger.
 To run the tests, use:
 
 ```bash
+npm i
+npx prisma generate
 npm run test
 npm run test:integration
 ```
