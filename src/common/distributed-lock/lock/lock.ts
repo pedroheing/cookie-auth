@@ -6,9 +6,9 @@ export class Lock extends EventEmitter {
 
 	constructor(
 		private readonly lockService: LockService,
-		public readonly key: string,
+		private readonly key: string,
 		private readonly value: string,
-		public readonly lockExpirationTimeInSeconds: number,
+		private readonly lockExpirationTimeInSeconds: number,
 	) {
 		super();
 		this.startAutoRenew();
@@ -25,7 +25,7 @@ export class Lock extends EventEmitter {
 		if (this.renewLockInterval) {
 			this.stopAutoRenew();
 		}
-		const renewPeriodInMs = Math.floor(this.lockExpirationTimeInSeconds / 2) * 1000;
+		const renewPeriodInMs = (this.lockExpirationTimeInSeconds / 2) * 1000;
 		if (renewPeriodInMs <= 0) {
 			return;
 		}
