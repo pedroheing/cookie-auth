@@ -1,5 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { Prisma, User } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService, PrismaTx } from 'src/common/prisma/prisma.service';
 
 interface UserInput {
@@ -33,22 +33,22 @@ export class UserService {
 	}
 
 	async findByUsername(username: string) {
-        return this.prismaService.user.findUnique({
-            where: { username },
-        });
-    }
+		return this.prismaService.user.findUnique({
+			where: { username },
+		});
+	}
 
 	async find(userId: number) {
-        return this.prismaService.user.findUnique({
-            where: { user_id: userId },
-        });
-    }
+		return this.prismaService.user.findUnique({
+			where: { user_id: userId },
+		});
+	}
 
-    async updatePassword(userId: number, newHash: string, tx?: PrismaTx) {
-        const prismaService = tx ?? this.prismaService;
-        return prismaService.user.update({
-            where: { user_id: userId },
-            data: { password: newHash },
-        });
-    }
+	async changePassword(userId: number, newHash: string, tx?: PrismaTx) {
+		const prismaService = tx ?? this.prismaService;
+		return prismaService.user.update({
+			where: { user_id: userId },
+			data: { password: newHash },
+		});
+	}
 }

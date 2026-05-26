@@ -1,7 +1,7 @@
-import { PrismaClient, User } from '@prisma/client';
 import { fakerPT_BR as faker } from '@faker-js/faker';
-import * as dotenv from 'dotenv';
+import { PrismaClient, User } from '@prisma/client';
 import * as argon2 from 'argon2';
+import * as dotenv from 'dotenv';
 
 dotenv.config();
 
