@@ -3,7 +3,7 @@ import { RedisContainer } from '@testcontainers/redis';
 import { execSync } from 'child_process';
 
 export default async () => {
-	console.log('\n[Global Setup] Subindo containers...');
+	console.log('\n[Global Setup] Starting containers...');
 
 	const [postgres, redis] = await Promise.all([
 		new PostgreSqlContainer('postgres:17').withDatabase('test_db').withUsername('test').withPassword('test').start(),
@@ -18,11 +18,11 @@ export default async () => {
 	(global as any).__PG_CONTAINER__ = postgres;
 	(global as any).__REDIS_CONTAINER__ = redis;
 
-	console.log('[Global Setup] Rodando migrations...');
+	console.log('[Global Setup] Running migrations...');
 	execSync('npx prisma migrate deploy', {
 		env: { ...process.env },
 		stdio: 'inherit',
 	});
 
-	console.log('[Global Setup] Pronto!');
+	console.log('[Global Setup] Done!');
 };

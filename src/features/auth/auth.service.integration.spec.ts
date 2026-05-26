@@ -25,15 +25,11 @@ describe('AuthService', () => {
 		userService = module.get(UserService);
 	});
 
-	it('should be defined', () => {
-		expect(authService).toBeDefined();
-	});
-
 	afterAll(async () => {
 		await app.close();
 	});
 
-	beforeEach(async () => {
+	afterEach(async () => {
 		await clearDatabase();
 		await flushRedis();
 	});

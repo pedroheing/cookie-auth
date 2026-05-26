@@ -24,12 +24,9 @@ describe('DistributedLockService', () => {
 		await app.close();
 	});
 
-	beforeEach(async () => {
-		await flushRedis();
-	});
-
-	afterEach(() => {
+	afterEach(async () => {
 		jest.useRealTimers();
+		await flushRedis();
 	});
 
 	describe('acquire', () => {
@@ -38,21 +35,29 @@ describe('DistributedLockService', () => {
 
 			const lock = await distributedLockService.acquire(key);
 
-			expect(lock).toBeDefined();
-			expect(lock.key).toBe(key);
+			try {
+				expect(lock).toBeDefined();
+				expect(lock.key).toBe(key);
+			} finally {
+				await lock.release();
+			}
 		});
 
 		it('should set the correct TTL directly in the Redis server', async () => {
 			const key = 'resource_key';
 			const expirationTime = 10;
 
-			await distributedLockService.acquire(key, {
+			const lock = await distributedLockService.acquire(key, {
 				expirationTimeInSeconds: expirationTime,
 			});
 
-			const actualTtl = await redisService.ttl(key);
-			expect(actualTtl).toBeGreaterThan(0);
-			expect(actualTtl).toBeLessThanOrEqual(expirationTime);
+			try {
+				const actualTtl = await redisService.ttl(key);
+				expect(actualTtl).toBeGreaterThan(0);
+				expect(actualTtl).toBeLessThanOrEqual(expirationTime);
+			} finally {
+				await lock.release();
+			}
 		});
 
 		it('should continuously renew the Redis TTL via heartbeat', async () => {
@@ -60,13 +65,17 @@ describe('DistributedLockService', () => {
 			const key = 'heartbeat_key';
 			const expirationTime = 10;
 
-			await distributedLockService.acquire(key, {
+			const lock = await distributedLockService.acquire(key, {
 				expirationTimeInSeconds: expirationTime,
 			});
 
-			await jest.advanceTimersByTimeAsync(8000);
-			const ttlAfterHeartbeat = await redisService.ttl(key);
-			expect(ttlAfterHeartbeat).toBeGreaterThan(5);
+			try {
+				await jest.advanceTimersByTimeAsync(8000);
+				const ttlAfterHeartbeat = await redisService.ttl(key);
+				expect(ttlAfterHeartbeat).toBeGreaterThan(5);
+			} finally {
+				await lock.release();
+			}
 		});
 
 		it('should acquire the lock after retrying when the lock was in use and then was released', async () => {
@@ -83,10 +92,14 @@ describe('DistributedLockService', () => {
 				timeout: acquireTimeout,
 			});
 
-			expect(lock).toBeDefined();
-			const duration = Date.now() - startTime;
-			expect(duration).toBeGreaterThanOrEqual(releaseTimeout);
-			expect(duration).toBeLessThan(acquireTimeout);
+			try {
+				expect(lock).toBeDefined();
+				const duration = Date.now() - startTime;
+				expect(duration).toBeGreaterThanOrEqual(releaseTimeout);
+				expect(duration).toBeLessThan(acquireTimeout);
+			} finally {
+				await lock.release();
+			}
 		});
 
 		it('should throw an error when it times out', async () => {
@@ -120,7 +133,11 @@ describe('DistributedLockService', () => {
 
 			const newLock = await distributedLockService.acquire(key);
 
-			expect(newLock).toBeDefined();
+			try {
+				expect(newLock).toBeDefined();
+			} finally {
+				await newLock.release();
+			}
 		});
 	});
 });
