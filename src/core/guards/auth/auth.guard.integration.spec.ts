@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { addHours } from 'date-fns';
 import { AppModule } from 'src/app.module';
+import { Public } from 'src/core/decorators/public-route.decorator';
 import { AuthConfigService } from 'src/features/auth/config/auth-config.service';
 import request, { Response } from 'supertest';
 import { clearDatabase } from 'test/helpers/clear-database';
@@ -12,6 +13,12 @@ import { flushRedis } from 'test/helpers/flush-redis';
 class TestController {
 	@Get()
 	ping() {
+		return { ok: true };
+	}
+
+	@Get('public')
+	@Public()
+	public() {
 		return { ok: true };
 	}
 }
@@ -74,6 +81,12 @@ describe('AuthGuard', () => {
 		const agent = await signUp();
 
 		const response = await agent.get('/__test__');
+
+		expect(response.status).toBe(200);
+	});
+
+	it('should allow the request without cookies when the route is public', async () => {
+		const response = await request(app.getHttpServer()).get('/__test__/public');
 
 		expect(response.status).toBe(200);
 	});
