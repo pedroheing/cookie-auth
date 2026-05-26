@@ -298,5 +298,6 @@ Full API documentation is available via Swagger.
 To run the tests, use:
 
 ```bash
-docker compose exec auth-server npm run test
+npm run test
+npm run test:integration
 ```
