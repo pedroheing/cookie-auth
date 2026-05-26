@@ -1,8 +1,17 @@
+import { Config } from '@jest/types';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { RedisContainer } from '@testcontainers/redis';
 import { execSync } from 'child_process';
 
-export default async () => {
+export default async (globalConfig: Config.GlobalConfig) => {
+	const testPathPattern = globalConfig.testPathPattern?.toString() ?? '';
+	const isIntegrationRun = !testPathPattern || /integration/.test(testPathPattern);
+
+	if (!isIntegrationRun) {
+		console.log('\n[Global Setup] Skipping containers (no integration tests)');
+		return;
+	}
+
 	console.log('\n[Global Setup] Starting containers...');
 
 	const [postgres, redis] = await Promise.all([
