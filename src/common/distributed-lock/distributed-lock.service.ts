@@ -14,7 +14,7 @@ export interface DistributedLockOptions {
 	timeout?: number | undefined;
 
 	/**
-	 * Max amount of time a lock should be held for in seconds
+	 * Max amount of time a lock should be held for in seconds, min of 1 second
 	 *
 	 * @default DistributedLockConfig.expirationTimeInSeconds
 	 */
@@ -30,7 +30,10 @@ export class DistributedLockService {
 
 	async acquire(key: string, options?: DistributedLockOptions): Promise<Lock> {
 		const lockValue = uuidv4();
-		const lockExpirationTimeInSeconds = options?.expirationTimeInSeconds ?? this.distributedLockConfigService.expirationTimeInSeconds;
+		let lockExpirationTimeInSeconds = options?.expirationTimeInSeconds ?? this.distributedLockConfigService.expirationTimeInSeconds;
+		if (lockExpirationTimeInSeconds <= 0) {
+			lockExpirationTimeInSeconds = 1;
+		}
 		const timeoutInMs = options?.timeout;
 		const startTime = Date.now();
 
