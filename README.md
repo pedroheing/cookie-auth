@@ -298,6 +298,8 @@ Full API documentation is available via Swagger.
 To run the tests, use:
 
 ```bash
-docker compose exec auth-server npm run test
-docker compose exec auth-server npm run test:integration
+npm i
+npx prisma generate
+npm run test
+npm run test:integration
 ```
